@@ -1,7 +1,10 @@
 package com.example.smartschoolbusapp;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -9,38 +12,72 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import com.google.firebase.auth.FirebaseAuth;
 
 public class LoginActivity extends AppCompatActivity {
+
     private EditText email, password;
-    private Button loginBtn;
-    private TextView registerLink;
+    private Button loginButton;
+    private TextView register, forgotPassword;
+    private FirebaseAuth mAuth;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
-        email = findViewById(R.id.input_email);
-        password = findViewById(R.id.input_password);
-        loginBtn = findViewById(R.id.btn_login);
-        registerLink = findViewById(R.id.link_register);
+        // Initialize views
+        email = findViewById(R.id.email);
+        password = findViewById(R.id.password);
+        loginButton = findViewById(R.id.login);
+        register = findViewById(R.id.register);
+        forgotPassword = findViewById(R.id.forgot_password);
 
-        // Handle login
-        loginBtn.setOnClickListener(v -> {
-            String emailText = email.getText().toString().trim();
-            String passwordText = password.getText().toString().trim();
+        // Initialize Firebase Auth
+        mAuth = FirebaseAuth.getInstance();
 
-            if (emailText.isEmpty() || passwordText.isEmpty()) {
-                Toast.makeText(this, "Please enter all fields", Toast.LENGTH_SHORT).show();
-            } else if (emailText.equals("parent@example.com") && passwordText.equals("123456")) {
-                Toast.makeText(this, "Login Successful", Toast.LENGTH_SHORT).show();
-                startActivity(new Intent(LoginActivity.this, MainActivity.class));
-            } else {
-                Toast.makeText(this, "Invalid email or password", Toast.LENGTH_SHORT).show();
+        // Login button listener
+        loginButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String userEmail = email.getText().toString().trim();
+                String userPassword = password.getText().toString().trim();
+
+                if (TextUtils.isEmpty(userEmail)) {
+                    email.setError("Email is required");
+                    return;
+                }
+
+                if (TextUtils.isEmpty(userPassword)) {
+                    password.setError("Password is required");
+                    return;
+                }
+
+                // Authenticate with Firebase
+                mAuth.signInWithEmailAndPassword(userEmail, userPassword)
+                        .addOnCompleteListener(task -> {
+                            if (task.isSuccessful()) {
+                                Toast.makeText(LoginActivity.this, "Login Successful", Toast.LENGTH_SHORT).show();
+                                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
+                                startActivity(intent);
+                                finish();
+                            } else {
+                                Toast.makeText(LoginActivity.this, "Error: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                            }
+                        });
             }
         });
 
-        // Navigate to Register Activity
-        registerLink.setOnClickListener(v -> startActivity(new Intent(LoginActivity.this, RegisterActivity.class)));
+        // Register listener
+        register.setOnClickListener(v -> {
+            Intent intent = new Intent(LoginActivity.this, RegisterActivity.class);
+            startActivity(intent);
+        });
+
+        // Forgot Password listener
+        forgotPassword.setOnClickListener(v -> {
+            Intent intent = new Intent(LoginActivity.this, ResetPasswordActivity.class);
+            startActivity(intent);
+        });
     }
 }
