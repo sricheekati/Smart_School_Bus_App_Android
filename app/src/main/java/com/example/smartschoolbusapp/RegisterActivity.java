@@ -129,10 +129,10 @@ public class RegisterActivity extends AppCompatActivity {
 
     // Password validation for specific pattern
     private boolean isValidPassword(String password) {
-        // Regex to check for at least one letter, one number, one special character, and 6+ characters
-        String passwordPattern = "^(?=.[A-Za-z])(?=.\\d)(?=.[@$!%?&#])[A-Za-z\\d@$!%*?&#]{6,}$";
+        String passwordPattern = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*?&#])[A-Za-z\\d@$!%*?&#]{6,}$";
         return password.matches(passwordPattern);
     }
+
 
     // Full Name validation for alphabets only
     private boolean isValidName(String name) {
