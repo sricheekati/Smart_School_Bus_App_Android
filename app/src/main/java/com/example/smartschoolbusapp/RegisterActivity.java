@@ -1,47 +1,154 @@
 package com.example.smartschoolbusapp;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import androidx.appcompat.widget.Toolbar;
 import android.os.Bundle;
+import android.text.TextUtils;
+import android.view.MenuItem;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import androidx.appcompat.app.AppCompatActivity;
+import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.Task;
+import com.google.firebase.auth.AuthResult;
+import com.google.firebase.auth.FirebaseAuth;
 
 public class RegisterActivity extends AppCompatActivity {
-    private EditText nameEditText, emailEditText, passwordEditText, confirmPasswordEditText;
-    private Button registerButton;
+    private EditText emailRegister;
+    private EditText passwordRegister;
+    private EditText confirmPassword;
+    private EditText fullName; // Added Full Name field
+    private Button signUp;
+    private SharedPreferences sharedPreferences;
+
+    FirebaseAuth fAuth;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
 
-        // Initialize UI components
-        nameEditText = findViewById(R.id.input_name);
-        emailEditText = findViewById(R.id.input_email);
-        passwordEditText = findViewById(R.id.input_password);
-        confirmPasswordEditText = findViewById(R.id.input_confirm_password);
-        registerButton = findViewById(R.id.btn_register);
+        // Set up the toolbar as the action bar
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
 
-        // Handle registration logic
-        registerButton.setOnClickListener(v -> {
-            String name = nameEditText.getText().toString().trim();
-            String email = emailEditText.getText().toString().trim();
-            String password = passwordEditText.getText().toString().trim();
-            String confirmPassword = confirmPasswordEditText.getText().toString().trim();
+        // Enable the back button on the toolbar
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
-            if (name.isEmpty() || email.isEmpty() || password.isEmpty() || confirmPassword.isEmpty()) {
-                Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show();
-            } else if (!password.equals(confirmPassword)) {
-                Toast.makeText(this, "Passwords do not match", Toast.LENGTH_SHORT).show();
-            } else {
-                // Simulate successful registration (In real apps, save to DB or backend service)
-                Toast.makeText(this, "Registration Successful", Toast.LENGTH_SHORT).show();
-                Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-                startActivity(intent);
-                finish(); // Close RegisterActivity
+        // Initialize SharedPreferences
+        sharedPreferences = getSharedPreferences("user_credentials", Context.MODE_PRIVATE);
+
+        // Initialize views
+        fullName = findViewById(R.id.fullName); // Initialize Full Name field
+        emailRegister = findViewById(R.id.emailRegister);
+        passwordRegister = findViewById(R.id.passwordRegister);
+        confirmPassword = findViewById(R.id.confirmPassword);
+        signUp = findViewById(R.id.signUp);
+        fAuth = FirebaseAuth.getInstance();
+
+        // Check if the user is already logged in
+        if (fAuth.getCurrentUser() != null) {
+            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+            startActivity(intent);
+            finish();
+        }
+
+        // Set onClickListener for signUp button
+        signUp.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String name = fullName.getText().toString().trim(); // Get Full Name
+                String email = emailRegister.getText().toString().trim();
+                String password = passwordRegister.getText().toString();
+                String confirm = confirmPassword.getText().toString();
+
+                // Validate Full Name
+                if (TextUtils.isEmpty(name)) {
+                    fullName.setError("Full Name is required");
+                    return;
+                }
+
+                if (!isValidName(name)) {
+                    fullName.setError("Full Name must contain only alphabets");
+                    return;
+                }
+
+                if (TextUtils.isEmpty(email)) {
+                    emailRegister.setError("Email is required");
+                    return;
+                }
+
+                if (TextUtils.isEmpty(password)) {
+                    passwordRegister.setError("Password is required");
+                    return;
+                }
+
+                if (!isValidPassword(password)) {
+                    passwordRegister.setError("Password must be at least 6 characters, including letters, numbers, and symbols");
+                    return;
+                }
+
+                // Check if password and confirm password match
+                if (!password.equals(confirm)) {
+                    Toast.makeText(RegisterActivity.this, "Passwords do not match", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                // Store the email, password, and full name in SharedPreferences
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putString("email", email);
+                editor.putString("password", password);
+                editor.putString("name", name); // Store Full Name
+                editor.apply();
+
+                // Register user with Firebase
+                fAuth.createUserWithEmailAndPassword(email, password).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+                    @Override
+                    public void onComplete(@NonNull Task<AuthResult> task) {
+                        if (task.isSuccessful()) {
+                            Toast.makeText(RegisterActivity.this, "User Registered", Toast.LENGTH_SHORT).show();
+                            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+                            startActivity(intent);
+                            finish();
+                        } else {
+                            Toast.makeText(RegisterActivity.this, "Error: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
             }
         });
+    }
+
+    // Password validation for specific pattern
+    private boolean isValidPassword(String password) {
+        // Regex to check for at least one letter, one number, one special character, and 6+ characters
+        String passwordPattern = "^(?=.[A-Za-z])(?=.\\d)(?=.[@$!%?&#])[A-Za-z\\d@$!%*?&#]{6,}$";
+        return password.matches(passwordPattern);
+    }
+
+    // Full Name validation for alphabets only
+    private boolean isValidName(String name) {
+        // Regex to check for alphabets only
+        String namePattern = "^[A-Za-z ]+$";
+        return name.matches(namePattern);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+            startActivity(intent);
+            finish();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 }
