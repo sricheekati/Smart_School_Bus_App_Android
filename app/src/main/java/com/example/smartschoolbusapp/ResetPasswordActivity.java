@@ -1,10 +1,9 @@
-
-
 package com.example.smartschoolbusapp;
 
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -12,16 +11,14 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
 
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.firebase.auth.FirebaseAuth;
 
 public class ResetPasswordActivity extends AppCompatActivity {
 
     private EditText emailInput;
-    private Button resetButton;
-    private Button backButton; // Declare the back button
+    private Button resetButton, backButton;
     private FirebaseAuth mAuth;
 
     @Override
@@ -29,58 +26,64 @@ public class ResetPasswordActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_reset_password);
 
+        // Initialize Toolbar with Back Button
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
+
         // Initialize views
         emailInput = findViewById(R.id.email_input);
         resetButton = findViewById(R.id.reset_button);
         backButton = findViewById(R.id.back_button);
         mAuth = FirebaseAuth.getInstance();
 
-        // Set the reset password button's onClickListener
-        resetButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                String userEmail = emailInput.getText().toString().trim();
+        // Reset password button listener
+        resetButton.setOnClickListener(v -> {
+            String userEmail = emailInput.getText().toString().trim();
 
-                if (!TextUtils.isEmpty(userEmail)) {
-                    resetPassword(userEmail); // Pass userEmail to the resetPassword method
-                } else {
-                    emailInput.setError("Email field can't be empty");
-                }
+            if (!TextUtils.isEmpty(userEmail)) {
+                resetPassword(userEmail);
+            } else {
+                emailInput.setError("Email field can't be empty");
             }
         });
 
-        // Set the back button's onClickListener
-        backButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // Redirect to LoginActivity
-                Intent intent = new Intent(ResetPasswordActivity.this, LoginActivity.class);
-                startActivity(intent);
-                finish();
-            }
-        });
+        // Back button listener
+        backButton.setOnClickListener(v -> navigateToLogin());
     }
 
-    // Method to reset the password
     private void resetPassword(String userEmail) {
-        resetButton.setVisibility(View.INVISIBLE); // Disable button to prevent multiple clicks
+        resetButton.setEnabled(false); // Disable to prevent multiple clicks
         mAuth.sendPasswordResetEmail(userEmail)
-                .addOnSuccessListener(new OnSuccessListener<Void>() {
-                    @Override
-                    public void onSuccess(Void unused) {
-                        Toast.makeText(ResetPasswordActivity.this, "Password reset instructions sent to " + userEmail, Toast.LENGTH_SHORT).show();
-                        // Redirect to LoginActivity after success
-                        Intent intent = new Intent(ResetPasswordActivity.this, LoginActivity.class);
-                        startActivity(intent);
-                        finish();
-                    }
+                .addOnSuccessListener(unused -> {
+                    Toast.makeText(ResetPasswordActivity.this, "Password reset email sent! Check your inbox.", Toast.LENGTH_LONG).show();
+                    resetButton.setEnabled(true);
+
+                    // ✅ Redirect to LoginActivity after a short delay
+                    resetButton.postDelayed(() -> navigateToLogin(), 2000);
                 })
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        Toast.makeText(ResetPasswordActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                        resetButton.setVisibility(View.VISIBLE); // Re-enable button on failure
-                    }
+                .addOnFailureListener(e -> {
+                    Toast.makeText(ResetPasswordActivity.this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    resetButton.setEnabled(true);
                 });
+    }
+
+    private void navigateToLogin() {
+        Intent intent = new Intent(ResetPasswordActivity.this, LoginActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent);
+        finish();  // Ensure `ResetPasswordActivity` is removed from back stack
+    }
+
+    // Handle Back Button Click in Toolbar
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            navigateToLogin();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 }

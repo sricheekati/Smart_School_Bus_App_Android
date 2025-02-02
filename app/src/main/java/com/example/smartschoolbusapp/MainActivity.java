@@ -19,10 +19,8 @@ public class MainActivity extends AppCompatActivity {
 
         // Handle logout button click
         logoutButton.setOnClickListener(v -> {
-            // Navigate back to LoginActivity
-            Intent intent = new Intent(MainActivity.this, LoginActivity.class);
-            startActivity(intent);
-            finish(); // Close MainActivity after logout
+            startActivity(new Intent(MainActivity.this, LoginActivity.class));
+            finish();
         });
     }
 }

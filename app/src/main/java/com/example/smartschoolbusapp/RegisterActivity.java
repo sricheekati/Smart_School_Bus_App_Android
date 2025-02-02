@@ -1,154 +1,156 @@
 package com.example.smartschoolbusapp;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import androidx.appcompat.widget.Toolbar;
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.view.MenuItem;
 import android.view.View;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.Toast;
+import android.widget.AdapterView;
 
-import com.google.android.gms.tasks.OnCompleteListener;
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.AuthResult;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
 
 public class RegisterActivity extends AppCompatActivity {
-    private EditText emailRegister;
-    private EditText passwordRegister;
-    private EditText confirmPassword;
-    private EditText fullName; // Added Full Name field
-    private Button signUp;
-    private SharedPreferences sharedPreferences;
 
-    FirebaseAuth fAuth;
+    private EditText fullName, emailRegister, passwordRegister, confirmPassword, studentIdField;
+    private Spinner roleSpinner;
+    private Button signUp;
+    private FirebaseAuth fAuth;
+    private FirebaseFirestore firestore;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_register);
 
-        // Set up the toolbar as the action bar
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
+        // Initialize Firebase
+        fAuth = FirebaseAuth.getInstance();
+        firestore = FirebaseFirestore.getInstance();
 
-        // Enable the back button on the toolbar
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        }
-
-        // Initialize SharedPreferences
-        sharedPreferences = getSharedPreferences("user_credentials", Context.MODE_PRIVATE);
-
-        // Initialize views
-        fullName = findViewById(R.id.fullName); // Initialize Full Name field
+        // Initialize Views
+        fullName = findViewById(R.id.fullName);
         emailRegister = findViewById(R.id.emailRegister);
         passwordRegister = findViewById(R.id.passwordRegister);
         confirmPassword = findViewById(R.id.confirmPassword);
+        studentIdField = findViewById(R.id.studentId);
+        roleSpinner = findViewById(R.id.roleSpinner);
         signUp = findViewById(R.id.signUp);
-        fAuth = FirebaseAuth.getInstance();
 
-        // Check if the user is already logged in
-        if (fAuth.getCurrentUser() != null) {
-            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-            startActivity(intent);
-            finish();
+        // Toolbar Setup
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("Register");
         }
 
-        // Set onClickListener for signUp button
-        signUp.setOnClickListener(new View.OnClickListener() {
+        // Enable Back Navigation
+        toolbar.setNavigationOnClickListener(v -> onBackPressed());
+
+        // Populate Role Selection Spinner
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, new String[]{"Parent", "Driver", "Admin"});
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        roleSpinner.setAdapter(adapter);
+
+        // Show/hide Student ID field based on role selection
+        roleSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
-            public void onClick(View v) {
-                String name = fullName.getText().toString().trim(); // Get Full Name
-                String email = emailRegister.getText().toString().trim();
-                String password = passwordRegister.getText().toString();
-                String confirm = confirmPassword.getText().toString();
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String selectedRole = roleSpinner.getSelectedItem().toString();
+                studentIdField.setVisibility(selectedRole.equalsIgnoreCase("Parent") ? View.VISIBLE : View.GONE);
+            }
 
-                // Validate Full Name
-                if (TextUtils.isEmpty(name)) {
-                    fullName.setError("Full Name is required");
-                    return;
-                }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
 
-                if (!isValidName(name)) {
-                    fullName.setError("Full Name must contain only alphabets");
-                    return;
-                }
+        // Sign Up Button Listener
+        signUp.setOnClickListener(v -> registerUser());
+    }
 
-                if (TextUtils.isEmpty(email)) {
-                    emailRegister.setError("Email is required");
-                    return;
-                }
+    private void registerUser() {
+        String name = fullName.getText().toString().trim();
+        String email = emailRegister.getText().toString().trim();
+        String password = passwordRegister.getText().toString();
+        String confirmPasswordText = confirmPassword.getText().toString();
+        String role = roleSpinner.getSelectedItem().toString().toLowerCase();
+        String studentId = studentIdField.getText().toString().trim();
 
-                if (TextUtils.isEmpty(password)) {
-                    passwordRegister.setError("Password is required");
-                    return;
-                }
+        if (TextUtils.isEmpty(name)) {
+            fullName.setError("Full Name is required");
+            return;
+        }
+        if (TextUtils.isEmpty(email)) {
+            emailRegister.setError("Email is required");
+            return;
+        }
+        if (TextUtils.isEmpty(password) || password.length() < 6) {
+            passwordRegister.setError("Password must be at least 6 characters");
+            return;
+        }
+        if (!password.equals(confirmPasswordText)) {
+            confirmPassword.setError("Passwords do not match");
+            return;
+        }
+        if (role.equals("parent") && TextUtils.isEmpty(studentId)) {
+            studentIdField.setError("Student ID is required for Parents");
+            return;
+        }
 
-                if (!isValidPassword(password)) {
-                    passwordRegister.setError("Password must be at least 6 characters, including letters, numbers, and symbols");
-                    return;
-                }
-
-                // Check if password and confirm password match
-                if (!password.equals(confirm)) {
-                    Toast.makeText(RegisterActivity.this, "Passwords do not match", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                // Store the email, password, and full name in SharedPreferences
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString("email", email);
-                editor.putString("password", password);
-                editor.putString("name", name); // Store Full Name
-                editor.apply();
-
-                // Register user with Firebase
-                fAuth.createUserWithEmailAndPassword(email, password).addOnCompleteListener(new OnCompleteListener<AuthResult>() {
-                    @Override
-                    public void onComplete(@NonNull Task<AuthResult> task) {
-                        if (task.isSuccessful()) {
-                            Toast.makeText(RegisterActivity.this, "User Registered", Toast.LENGTH_SHORT).show();
-                            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-                            startActivity(intent);
-                            finish();
-                        } else {
-                            Toast.makeText(RegisterActivity.this, "Error: " + task.getException().getMessage(), Toast.LENGTH_SHORT).show();
+        fAuth.createUserWithEmailAndPassword(email, password).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                FirebaseUser user = fAuth.getCurrentUser();
+                if (user != null) {
+                    user.sendEmailVerification().addOnCompleteListener(verificationTask -> {
+                        if (verificationTask.isSuccessful()) {
+                            showToast("Verification email sent. Please check your inbox.");
                         }
-                    }
-                });
+                    });
+
+                    saveUserToFirestore(user.getUid(), name, email, role, studentId);
+                }
+            } else {
+                showToast("Error: " + task.getException().getMessage());
             }
         });
     }
 
-    // Password validation for specific pattern
-    private boolean isValidPassword(String password) {
-        String passwordPattern = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*?&#])[A-Za-z\\d@$!%*?&#]{6,}$";
-        return password.matches(passwordPattern);
-    }
+    private void saveUserToFirestore(String userId, String name, String email, String role, String studentId) {
+        DocumentReference userRef = firestore.collection("users").document(userId);
+        HashMap<String, Object> userData = new HashMap<>();
+        userData.put("name", name);
+        userData.put("email", email);
+        userData.put("role", role);
 
+        // Parents get automatic approval, Admins & Drivers need admin approval
+        userData.put("status", role.equals("parent") ? "approved" : "pending");
 
-    // Full Name validation for alphabets only
-    private boolean isValidName(String name) {
-        // Regex to check for alphabets only
-        String namePattern = "^[A-Za-z ]+$";
-        return name.matches(namePattern);
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-            startActivity(intent);
-            finish();
-            return true;
+        if (role.equals("parent")) {
+            userData.put("student_id", studentId);
         }
-        return super.onOptionsItemSelected(item);
+
+        userRef.set(userData).addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                showToast("Registration Successful! Please Log In.");
+                startActivity(new Intent(RegisterActivity.this, LoginActivity.class));
+                finish();
+            }
+        });
+    }
+
+    private void showToast(String message) {
+        Toast.makeText(RegisterActivity.this, message, Toast.LENGTH_SHORT).show();
     }
 }
