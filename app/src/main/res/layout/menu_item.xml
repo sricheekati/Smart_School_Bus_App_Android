@@ -1,0 +1,32 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="@color/white">
+
+    <Button
+        android:id="@+id/btn_chat"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Chat"/>
+
+    <Button
+        android:id="@+id/btn_routes"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Routes"/>
+
+    <Button
+        android:id="@+id/btn_approve_users"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Approve Users"
+        android:visibility="gone"/>
+
+    <Button
+        android:id="@+id/btn_logout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Logout"/>
+</LinearLayout>

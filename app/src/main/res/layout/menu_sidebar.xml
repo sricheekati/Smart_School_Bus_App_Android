@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/white"
+    android:padding="16dp"
+    android:gravity="top">
+
+    <!-- 🚍 School Bus Icon -->
+    <ImageView
+        android:id="@+id/schoolBusIcon"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_gravity="center_horizontal"
+        android:src="@drawable/logo"
+        android:contentDescription="School Bus Icon"
+        android:paddingBottom="16dp" />
+
+    <!-- 📝 Chat -->
+    <TextView
+        android:id="@+id/menuChat"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Chat"
+        android:textSize="18sp"
+        android:textColor="@android:color/black"
+        android:padding="12dp"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- 🛣 Routes -->
+    <TextView
+        android:id="@+id/menuRoutes"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Routes"
+        android:textSize="18sp"
+        android:textColor="@android:color/black"
+        android:padding="12dp"
+        android:clickable="true"
+        android:focusable="true" />
+
+    <!-- ✅ Approve Users (Only for Admins) -->
+    <TextView
+        android:id="@+id/menuApproveUsers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Approve Users"
+        android:textSize="18sp"
+        android:textColor="@android:color/black"
+        android:padding="12dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone" />
+
+    <!-- 🚪 Logout -->
+    <TextView
+        android:id="@+id/menuLogout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Logout"
+        android:textSize="18sp"
+        android:textColor="@android:color/black"
+        android:padding="12dp"
+        android:clickable="true"
+        android:focusable="true" />
+
+</LinearLayout>
