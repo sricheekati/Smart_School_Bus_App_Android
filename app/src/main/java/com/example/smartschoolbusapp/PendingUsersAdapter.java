@@ -6,24 +6,19 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
 import com.google.firebase.firestore.DocumentSnapshot;
-
 import java.util.List;
 
 public class PendingUsersAdapter extends RecyclerView.Adapter<PendingUsersAdapter.ViewHolder> {
 
     private List<DocumentSnapshot> pendingUsers;
     private Context context;
-    private AdminDashboardActivity adminActivity;
 
-    public PendingUsersAdapter(List<DocumentSnapshot> pendingUsers, AdminDashboardActivity adminActivity) {
+    public PendingUsersAdapter(List<DocumentSnapshot> pendingUsers, Context context) {  // ✅ Accept generic Context
         this.pendingUsers = pendingUsers;
-        this.context = adminActivity;
-        this.adminActivity = adminActivity;
+        this.context = context;
     }
 
     @NonNull
@@ -45,7 +40,13 @@ public class PendingUsersAdapter extends RecyclerView.Adapter<PendingUsersAdapte
         holder.userEmail.setText(email);
         holder.userRole.setText(role);
 
-        holder.approveButton.setOnClickListener(v -> adminActivity.approveUser(userId));
+        // ✅ Approve user only if it's called from an Admin
+        if (context instanceof AdminDashboardActivity) {
+            holder.approveButton.setVisibility(View.VISIBLE);
+            holder.approveButton.setOnClickListener(v -> ((AdminDashboardActivity) context).approveUser(userId));
+        } else {
+            holder.approveButton.setVisibility(View.GONE);
+        }
     }
 
     @Override

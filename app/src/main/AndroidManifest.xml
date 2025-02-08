@@ -28,6 +28,9 @@
         <activity
             android:name=".RegisterActivity"
             android:exported="false" /> <!-- MainActivity Declaration as the Launcher Activity -->
+        <activity android:name=".ChatActivity" />
+        <activity android:name=".RoutesActivity" />
+        <activity android:name=".ApproveUsersActivity" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

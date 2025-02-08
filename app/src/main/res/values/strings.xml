@@ -5,4 +5,7 @@
         <item>Driver</item>
         <item>Admin</item>
     </string-array>
+    <string name="open">Open Navigation</string>
+    <string name="close">Close Navigation</string>
+
 </resources>

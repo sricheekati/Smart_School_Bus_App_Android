@@ -1,8 +1,7 @@
-<?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="horizontal"
     android:padding="10dp">
 
     <!-- User Name -->
@@ -12,37 +11,30 @@
         android:layout_height="wrap_content"
         android:text="User Name"
         android:textSize="16sp"
-        android:textStyle="bold"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"/>
+        android:layout_weight="2"/>
 
-    <!-- User Email (✅ MISSING FIELD ADDED HERE) -->
+    <!-- User Email -->
     <TextView
         android:id="@+id/user_email"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="user@example.com"
         android:textSize="14sp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/user_name"/>
+        android:layout_weight="3"/>
 
-    <!-- User Role -->
+    <!-- User Role (Fix: Ensure this exists) -->
     <TextView
         android:id="@+id/user_role"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:text="User Role"
+        android:text="Role"
         android:textSize="14sp"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/user_email"/>
+        android:layout_weight="2"/>
 
     <!-- Approve Button -->
     <Button
         android:id="@+id/approve_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Approve"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"/>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+        android:text="Approve"/>
+</LinearLayout>

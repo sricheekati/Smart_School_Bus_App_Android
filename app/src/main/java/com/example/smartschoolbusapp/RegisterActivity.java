@@ -3,13 +3,14 @@ package com.example.smartschoolbusapp;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Patterns;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.Toast;
-import android.widget.AdapterView;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -17,10 +18,12 @@ import androidx.appcompat.widget.Toolbar;
 
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.HashMap;
+import java.util.regex.Pattern;
 
 public class RegisterActivity extends AppCompatActivity {
 
@@ -29,6 +32,7 @@ public class RegisterActivity extends AppCompatActivity {
     private Button signUp;
     private FirebaseAuth fAuth;
     private FirebaseFirestore firestore;
+    private boolean isStudentIdValid = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,7 +71,7 @@ public class RegisterActivity extends AppCompatActivity {
         // Show/hide Student ID field based on role selection
         roleSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
-            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+            public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
                 String selectedRole = roleSpinner.getSelectedItem().toString();
                 studentIdField.setVisibility(selectedRole.equalsIgnoreCase("Parent") ? View.VISIBLE : View.GONE);
             }
@@ -77,10 +81,11 @@ public class RegisterActivity extends AppCompatActivity {
         });
 
         // Sign Up Button Listener
-        signUp.setOnClickListener(v -> registerUser());
+        signUp.setOnClickListener(v -> validateInputs());
     }
 
-    private void registerUser() {
+    // ✅ Validate Inputs Before Registration
+    private void validateInputs() {
         String name = fullName.getText().toString().trim();
         String email = emailRegister.getText().toString().trim();
         String password = passwordRegister.getText().toString();
@@ -88,26 +93,77 @@ public class RegisterActivity extends AppCompatActivity {
         String role = roleSpinner.getSelectedItem().toString().toLowerCase();
         String studentId = studentIdField.getText().toString().trim();
 
+        boolean isValid = true;
+
         if (TextUtils.isEmpty(name)) {
             fullName.setError("Full Name is required");
-            return;
+            isValid = false;
         }
         if (TextUtils.isEmpty(email)) {
             emailRegister.setError("Email is required");
-            return;
+            isValid = false;
+        } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+            emailRegister.setError("Invalid email format");
+            isValid = false;
         }
-        if (TextUtils.isEmpty(password) || password.length() < 6) {
-            passwordRegister.setError("Password must be at least 6 characters");
-            return;
+        if (!isValidPassword(password)) {
+            passwordRegister.setError("Password must be at least 6 characters, include 1 uppercase letter & 1 special character");
+            isValid = false;
         }
         if (!password.equals(confirmPasswordText)) {
             confirmPassword.setError("Passwords do not match");
-            return;
+            isValid = false;
         }
         if (role.equals("parent") && TextUtils.isEmpty(studentId)) {
             studentIdField.setError("Student ID is required for Parents");
-            return;
+            isValid = false;
         }
+
+        if (!isValid) return; // Stop if any validation fails
+
+        // ✅ Proceed to check if Email Exists
+        checkEmailExistsBeforeRegistration(email, role, studentId);
+    }
+
+    // ✅ Check if Email is Already Registered in Firestore
+    private void checkEmailExistsBeforeRegistration(String email, String role, String studentId) {
+        firestore.collection("users").whereEqualTo("email", email).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
+                        emailRegister.setError("This email is already registered. Please log in.");
+                    } else {
+                        // If email is unique, check student ID (for parents)
+                        if (role.equals("parent")) {
+                            validateStudentId(studentId);
+                        } else {
+                            registerUser(email, role, studentId);
+                        }
+                    }
+                });
+    }
+
+    // ✅ Validate Student ID Before Registration
+    private void validateStudentId(String studentId) {
+        firestore.collection("students").document(studentId).get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        DocumentSnapshot document = task.getResult();
+                        if (document.exists()) {
+                            isStudentIdValid = true;
+                            registerUser(emailRegister.getText().toString().trim(), "parent", studentId);
+                        } else {
+                            studentIdField.setError("Invalid Student ID. Please enter a valid ID.");
+                        }
+                    } else {
+                        studentIdField.setError("Error checking student ID. Try again.");
+                    }
+                });
+    }
+
+    // ✅ Register User in Firebase Authentication & Firestore
+    private void registerUser(String email, String role, String studentId) {
+        String name = fullName.getText().toString().trim();
+        String password = passwordRegister.getText().toString();
 
         fAuth.createUserWithEmailAndPassword(email, password).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
@@ -127,27 +183,31 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
+    // ✅ Save User to Firestore
     private void saveUserToFirestore(String userId, String name, String email, String role, String studentId) {
-        DocumentReference userRef = firestore.collection("users").document(userId);
         HashMap<String, Object> userData = new HashMap<>();
         userData.put("name", name);
         userData.put("email", email);
         userData.put("role", role);
-
-        // Parents get automatic approval, Admins & Drivers need admin approval
         userData.put("status", role.equals("parent") ? "approved" : "pending");
 
         if (role.equals("parent")) {
             userData.put("student_id", studentId);
         }
 
-        userRef.set(userData).addOnCompleteListener(task -> {
+        firestore.collection("users").document(userId).set(userData).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
                 showToast("Registration Successful! Please Log In.");
                 startActivity(new Intent(RegisterActivity.this, LoginActivity.class));
                 finish();
             }
         });
+    }
+
+    // ✅ Strong Password Validation: At least 6 characters, 1 uppercase letter, and 1 special character
+    private boolean isValidPassword(String password) {
+        String passwordPattern = "^(?=.*[A-Z])(?=.*[@#$%^&+=!]).{6,}$";
+        return Pattern.compile(passwordPattern).matcher(password).matches();
     }
 
     private void showToast(String message) {
