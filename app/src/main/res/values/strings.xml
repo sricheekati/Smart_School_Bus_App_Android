@@ -7,5 +7,7 @@
     </string-array>
     <string name="open">Open Navigation</string>
     <string name="close">Close Navigation</string>
+    <string name="google_maps_key">AIzaSyDa2ZQpfN0QlJeJtP6rcGrsISlHV4mnQoc</string>
+    <string name="update_location">Update Location</string>
 
 </resources>
