@@ -1,6 +1,5 @@
 package com.example.smartschoolbusapp;
 
-import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -8,45 +7,39 @@ import android.widget.Button;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-import com.google.firebase.firestore.DocumentSnapshot;
 import java.util.List;
 
 public class PendingUsersAdapter extends RecyclerView.Adapter<PendingUsersAdapter.ViewHolder> {
 
-    private List<DocumentSnapshot> pendingUsers;
-    private Context context;
+    private List<UserModel> pendingUsers;
+    private OnUserApprovedListener listener;
 
-    public PendingUsersAdapter(List<DocumentSnapshot> pendingUsers, Context context) {  // ✅ Accept generic Context
+    public interface OnUserApprovedListener {
+        void onUserApproved(String userId);
+        void onUserRejected(String userId);
+    }
+
+    public PendingUsersAdapter(List<UserModel> pendingUsers, OnUserApprovedListener listener) {
         this.pendingUsers = pendingUsers;
-        this.context = context;
+        this.listener = listener;
     }
 
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(context).inflate(R.layout.item_pending_user, parent, false);
+        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_pending_user, parent, false);
         return new ViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        DocumentSnapshot user = pendingUsers.get(position);
-        String userId = user.getId();
-        String name = user.getString("name");
-        String email = user.getString("email");
-        String role = user.getString("role");
+        UserModel user = pendingUsers.get(position);
+        holder.userName.setText(user.getName());
+        holder.userEmail.setText(user.getEmail());
+        holder.userRole.setText(user.getRole());
 
-        holder.userName.setText(name);
-        holder.userEmail.setText(email);
-        holder.userRole.setText(role);
-
-        // ✅ Approve user only if it's called from an Admin
-        if (context instanceof AdminDashboardActivity) {
-            holder.approveButton.setVisibility(View.VISIBLE);
-            holder.approveButton.setOnClickListener(v -> ((AdminDashboardActivity) context).approveUser(userId));
-        } else {
-            holder.approveButton.setVisibility(View.GONE);
-        }
+        holder.approveButton.setOnClickListener(v -> listener.onUserApproved(user.getUid()));
+        holder.rejectButton.setOnClickListener(v -> listener.onUserRejected(user.getUid()));
     }
 
     @Override
@@ -56,14 +49,15 @@ public class PendingUsersAdapter extends RecyclerView.Adapter<PendingUsersAdapte
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView userName, userEmail, userRole;
-        Button approveButton;
+        Button approveButton,rejectButton;
 
-        public ViewHolder(@NonNull View itemView) {
+        public ViewHolder(View itemView) {
             super(itemView);
             userName = itemView.findViewById(R.id.user_name);
             userEmail = itemView.findViewById(R.id.user_email);
             userRole = itemView.findViewById(R.id.user_role);
             approveButton = itemView.findViewById(R.id.approve_button);
+            rejectButton = itemView.findViewById(R.id.reject_button);
         }
     }
 }
