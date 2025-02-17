@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     package="com.example.smartschoolbusapp">
 
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -10,6 +14,13 @@
         android:icon="@drawable/logo"
         android:theme="@style/Theme.SmartSchoolBusApp"
         tools:targetApi="31">
+
+        <activity
+            android:name=".item_message"
+            android:exported="false" />
+        <activity
+            android:name=".activity_chat_bot"
+            android:exported="false" />
         <activity
             android:name=".AdminDashboardActivity"
             android:exported="false" />
@@ -28,7 +39,11 @@
         <activity
             android:name=".RegisterActivity"
             android:exported="false" /> <!-- MainActivity Declaration as the Launcher Activity -->
+        <activity android:name=".ChatBotActivity" android:exported="true"/>
         <activity android:name=".ChatActivity" />
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/google_maps_key" />
         <activity android:name=".RoutesActivity" />
         <activity android:name=".ApproveUsersActivity" />
         <activity
@@ -43,6 +58,14 @@
         <activity
             android:name=".LoginActivity"
             android:exported="false" />
+
+        <service
+            android:name=".MyFirebaseMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>
