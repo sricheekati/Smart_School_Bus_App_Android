@@ -1,4 +1,5 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
@@ -22,7 +23,7 @@
         android:textSize="14sp"
         android:layout_weight="3"/>
 
-    <!-- User Role (Fix: Ensure this exists) -->
+    <!-- User Role -->
     <TextView
         android:id="@+id/user_role"
         android:layout_width="0dp"
@@ -36,5 +37,14 @@
         android:id="@+id/approve_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Approve"/>
+        android:text="Approve"
+        android:backgroundTint="@color/green"/>
+
+    <!-- Reject Button (RED) -->
+    <Button
+        android:id="@+id/reject_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Reject"
+        android:backgroundTint="@color/red"/>
 </LinearLayout>
