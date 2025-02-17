@@ -20,7 +20,6 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.HashMap;
 import java.util.regex.Pattern;
@@ -32,7 +31,6 @@ public class RegisterActivity extends AppCompatActivity {
     private Button signUp;
     private FirebaseAuth fAuth;
     private FirebaseFirestore firestore;
-    private boolean isStudentIdValid = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,7 +58,6 @@ public class RegisterActivity extends AppCompatActivity {
             getSupportActionBar().setTitle("Register");
         }
 
-        // Enable Back Navigation
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
         // Populate Role Selection Spinner
@@ -71,13 +68,14 @@ public class RegisterActivity extends AppCompatActivity {
         // Show/hide Student ID field based on role selection
         roleSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
-            public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 String selectedRole = roleSpinner.getSelectedItem().toString();
                 studentIdField.setVisibility(selectedRole.equalsIgnoreCase("Parent") ? View.VISIBLE : View.GONE);
             }
 
             @Override
-            public void onNothingSelected(AdapterView<?> parent) {}
+            public void onNothingSelected(AdapterView<?> parent) {
+            }
         });
 
         // Sign Up Button Listener
@@ -119,7 +117,7 @@ public class RegisterActivity extends AppCompatActivity {
             isValid = false;
         }
 
-        if (!isValid) return; // Stop if any validation fails
+        if (!isValid) return;
 
         // ✅ Proceed to check if Email Exists
         checkEmailExistsBeforeRegistration(email, role, studentId);
@@ -132,9 +130,8 @@ public class RegisterActivity extends AppCompatActivity {
                     if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
                         emailRegister.setError("This email is already registered. Please log in.");
                     } else {
-                        // If email is unique, check student ID (for parents)
                         if (role.equals("parent")) {
-                            validateStudentId(studentId);
+                            checkIfParentAlreadyRegistered(studentId, email);
                         } else {
                             registerUser(email, role, studentId);
                         }
@@ -142,21 +139,45 @@ public class RegisterActivity extends AppCompatActivity {
                 });
     }
 
-    // ✅ Validate Student ID Before Registration
-    private void validateStudentId(String studentId) {
-        firestore.collection("students").document(studentId).get()
+    // ✅ Check if Parent Already Registered for Student
+    private void checkIfParentAlreadyRegistered(String studentId, String email) {
+        firestore.collection("users")
+                .whereEqualTo("student_id", studentId)
+                .whereEqualTo("role", "parent")
+                .get()
                 .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        DocumentSnapshot document = task.getResult();
-                        if (document.exists()) {
-                            isStudentIdValid = true;
-                            registerUser(emailRegister.getText().toString().trim(), "parent", studentId);
+                    if (task.isSuccessful() && task.getResult() != null && !task.getResult().isEmpty()) {
+                        showToast("A parent account for this student already exists.");
+                        emailRegister.setError("Duplicate Parent Account Not Allowed");
+                    } else {
+                        validateStudentId(studentId, email);
+                    }
+                });
+    }
+
+    // ✅ Validate Student ID Before Registration
+    private void validateStudentId(String studentId, String enteredEmail) {
+        showToast("Checking Student ID: " + studentId);
+
+        firestore.collection("students").document(studentId).get()
+                .addOnSuccessListener(studentDoc -> {
+                    if (studentDoc.exists()) {
+                        String registeredParentEmail = studentDoc.getString("parent_email");
+
+                        if (registeredParentEmail != null && registeredParentEmail.equalsIgnoreCase(enteredEmail)) {
+                            showToast("Student ID verified. Proceeding with registration.");
+                            registerUser(enteredEmail, "parent", studentId);
                         } else {
-                            studentIdField.setError("Invalid Student ID. Please enter a valid ID.");
+                            showToast("The email does not match the registered Parent Email.");
+                            studentIdField.setError("Incorrect Parent Email.");
                         }
                     } else {
-                        studentIdField.setError("Error checking student ID. Try again.");
+                        showToast("Student ID Not Found.");
+                        studentIdField.setError("Invalid Student ID.");
                     }
+                })
+                .addOnFailureListener(e -> {
+                    showToast("Firestore Permission Error: " + e.getMessage());
                 });
     }
 
@@ -204,7 +225,7 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
-    // ✅ Strong Password Validation: At least 6 characters, 1 uppercase letter, and 1 special character
+    // ✅ Password Validation
     private boolean isValidPassword(String password) {
         String passwordPattern = "^(?=.*[A-Z])(?=.*[@#$%^&+=!]).{6,}$";
         return Pattern.compile(passwordPattern).matcher(password).matches();
