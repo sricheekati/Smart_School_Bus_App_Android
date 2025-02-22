@@ -12,17 +12,17 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+// Constructor for ChatAdapter
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
 
     private Context context;
     private List<ChatMessage> messages;
-    private String receiverId;
+    private String currentUserId;
 
-    // Constructor for ChatAdapter
-    public ChatAdapter(Context context, List<ChatMessage> messages, String receiverId) {
+    public ChatAdapter(Context context, List<ChatMessage> messages, String currentUserId) {
         this.context = context;
         this.messages = messages;
-        this.receiverId = receiverId;
+        this.currentUserId = currentUserId;
     }
 
     @NonNull
@@ -37,11 +37,19 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
         ChatMessage message = messages.get(position);
         holder.messageText.setText(message.getMessage());
 
-        // Here you can update the UI based on sender and receiver
-        if (message.getSenderID().equals(receiverId)) {
-            holder.senderName.setText("Receiver: " + message.getSenderID());
+        // Format the timestamp
+        String formattedTime = formatTimestamp(message.getTimestamp());
+        holder.timestamp.setText(formattedTime);
+
+        // Check if the message is from the current user or the other user
+        if (message.getSenderID().equals(currentUserId)) {
+            // Sender
+            holder.senderName.setText("You");
+            holder.messageText.setBackgroundResource(R.drawable.bg_bot_message); // Style sender's messages differently
         } else {
-            holder.senderName.setText("Sender: " + message.getSenderID());
+            // Receiver
+            holder.senderName.setText("Receiver: " + message.getSenderID());
+            holder.messageText.setBackgroundResource(R.drawable.bg_user_message); // Style receiver's messages differently
         }
     }
 
@@ -50,13 +58,19 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
         return messages.size();
     }
 
+    private String formatTimestamp(long timestamp) {
+        SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a", Locale.getDefault());
+        return sdf.format(new Date(timestamp));
+    }
+
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView messageText, senderName;
+        TextView messageText, senderName, timestamp;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
             messageText = itemView.findViewById(R.id.messageText);
             senderName = itemView.findViewById(R.id.senderName);
+            timestamp = itemView.findViewById(R.id.timestamp);
         }
     }
 }
