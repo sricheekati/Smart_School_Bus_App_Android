@@ -53,6 +53,17 @@
         android:clickable="true"
         android:focusable="true" />
 
+    <TextView
+        android:id="@+id/menuEmergencyAlerts"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Emergency Alerts"
+        android:textSize="18sp"
+        android:textColor="@android:color/black"
+        android:padding="12dp"
+        android:clickable="true"
+        android:focusable="true" />
+
     <!-- 🚪 Logout -->
     <TextView
         android:id="@+id/menuLogout"

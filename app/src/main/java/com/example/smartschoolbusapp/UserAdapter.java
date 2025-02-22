@@ -6,6 +6,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 import java.util.ArrayList;
@@ -32,16 +34,25 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.ViewHolder> {
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         UserModel user = filteredUsers.get(position);
+
         holder.userName.setText(user.getName());
         holder.userEmail.setText(user.getEmail());
         holder.userRole.setText(user.getRole());
 
-        // ✅ Click on user to open chat page
         holder.itemView.setOnClickListener(v -> {
-            Intent chatIntent = new Intent(context, ChatActivity.class);
-            chatIntent.putExtra("userId", user.getUid()); // Pass user ID
-            chatIntent.putExtra("userName", user.getName()); // Pass user name
-            context.startActivity(chatIntent);
+            if (user.getUid() != null && !user.getUid().isEmpty()) { // 🔥 Ensure receiverId is valid
+                Intent chatIntent = new Intent(context, ChatActivity.class);
+                chatIntent.putExtra("receiverId", user.getUid());
+                chatIntent.putExtra("receiverName", user.getName());
+                chatIntent.putExtra("receiverRole", user.getRole());
+
+                // ✅ Debugging: Log receiverId before starting ChatActivity
+                System.out.println("Opening ChatActivity with receiverId: " + user.getUid());
+
+                context.startActivity(chatIntent);
+            } else {
+                Toast.makeText(context, "Error: Receiver ID is missing", Toast.LENGTH_SHORT).show();
+            }
         });
     }
 

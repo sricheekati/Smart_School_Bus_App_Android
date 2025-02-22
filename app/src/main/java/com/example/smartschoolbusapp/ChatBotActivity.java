@@ -35,7 +35,7 @@ public class ChatBotActivity extends AppCompatActivity {
 
         // 🔹 Initialize Message List
         messageList = new ArrayList<>();
-        chatAdapter = new ChatAdapter(messageList);
+//        chatAdapter = new ChatAdapter(messageList);
         chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         chatRecyclerView.setAdapter(chatAdapter);
 
