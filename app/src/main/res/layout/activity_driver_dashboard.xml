@@ -7,11 +7,11 @@
     android:layout_height="match_parent"
     tools:context=".DriverDashboardActivity">
 
-    <!--<androidx.constraintlayout.widget.ConstraintLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-         🛠 Toolbar
+        <!-- 🛠 Toolbar with Search -->
         <androidx.appcompat.widget.Toolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
@@ -20,73 +20,16 @@
             android:padding="8dp"
             android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
             app:navigationIcon="@drawable/ic_menu"
-            app:title="Driver Dashboard" />
-        -->
-    <!-- Toolbar added here -->
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?android:attr/actionBarWidgetTheme"
-        android:title="Driver Dashboard" />
+            app:title="Driver Dashboard"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
 
-    <androidx.constraintlayout.widget.ConstraintLayout
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        tools:context=".activity_driver">
-
-
-        <!-- TextView with the title of the dashboard -->
-        <TextView
+        <!-- 🔍 Search Results List -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/search_results_list"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:text="Driver Dashboard"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            tools:ignore="HardcodedText" />
-        <!-- Latitude Input
-        <EditText
-            android:id="@+id/lat_input"
-            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
-            android:hint="Latitude"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
+            android:visibility="gone"
             app:layout_constraintTop_toBottomOf="@id/toolbar" />
-
-         Longitude Input
-        <EditText
-            android:id="@+id/lng_input"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:hint="Longitude"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/lat_input" />  -->
-
-        <!-- Google Maps View -->
-        <com.google.android.gms.maps.MapView
-            android:id="@+id/mapView"
-            android:layout_width="match_parent"
-            android:layout_height="500dp"
-            android:layout_marginTop="96dp"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:layout_editor_absoluteX="0dp" />
-
-
-        <!-- Update Location Button -->
-        <Button
-            android:id="@+id/startTrackingButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="68dp"
-            android:text="@string/update_location"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintHorizontal_bias="0.443"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/mapView" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

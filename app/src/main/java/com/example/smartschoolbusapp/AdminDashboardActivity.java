@@ -21,6 +21,7 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import java.util.ArrayList;
 import java.util.List;
+import android.util.Log;
 
 public class AdminDashboardActivity extends AppCompatActivity implements PendingUsersAdapter.OnUserApprovedListener {
 
@@ -34,7 +35,6 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
     private List<UserModel> pendingUsers = new ArrayList<>();
     private List<UserModel> allUsers = new ArrayList<>();
     private List<UserModel> filteredUsers = new ArrayList<>();
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,13 +59,17 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
             return;
         }
 
-        setSupportActionBar(toolbar);
+//        setSupportActionBar(toolbar);
 
         // ✅ Setup Sidebar Menu
         setupNavigationDrawer();
 
         // ✅ Setup RecyclerViews
         setupRecyclerViews();
+
+        // ✅ Load Users
+        loadPendingUsers();
+        loadApprovedUsers();
     }
 
     // ✅ Setup Sidebar Menu & Click Listeners
@@ -80,6 +84,7 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
         TextView menuChat = headerView.findViewById(R.id.menuChat);
         TextView menuRoutes = headerView.findViewById(R.id.menuRoutes);
         TextView menuApproveUsers = headerView.findViewById(R.id.menuApproveUsers);
+        TextView menuEmergencyAlerts = headerView.findViewById(R.id.menuEmergencyAlerts);
         TextView menuLogout = headerView.findViewById(R.id.menuLogout);
 
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
@@ -88,9 +93,10 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
         drawerLayout.addDrawerListener(toggle);
         toggle.syncState();
 
-        menuChat.setOnClickListener(v -> startActivity(new Intent(this, ChatActivity.class)));
+        menuChat.setOnClickListener(v -> startActivity(new Intent(this, ChatsListActivity.class)));
         menuRoutes.setOnClickListener(v -> startActivity(new Intent(this, RoutesActivity.class)));
         menuApproveUsers.setOnClickListener(v -> startActivity(new Intent(this, ApproveUsersActivity.class)));
+        menuEmergencyAlerts.setOnClickListener(v -> startActivity(new Intent(this, EmergencyAlertsActivity.class)));
         menuLogout.setOnClickListener(v -> {
             auth.signOut();
             startActivity(new Intent(this, LoginActivity.class));
@@ -100,6 +106,15 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
         schoolBusIcon.setOnClickListener(v ->
                 Toast.makeText(this, "School Bus Icon Clicked!", Toast.LENGTH_SHORT).show()
         );
+        if (auth.getCurrentUser() != null) {
+            firestore.collection("users").document(auth.getCurrentUser().getUid())
+                    .get().addOnSuccessListener(documentSnapshot -> {
+                        String role = documentSnapshot.getString("role");
+
+                        menuApproveUsers.setVisibility(role.equals("admin") ? View.VISIBLE : View.GONE);
+                        menuEmergencyAlerts.setVisibility(role.equals("admin") || role.equals("driver") ? View.VISIBLE : View.GONE);
+                    });
+        }
     }
 
     // ✅ Setup RecyclerViews
@@ -109,8 +124,12 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
         pendingList.setAdapter(pendingUsersAdapter);
 
         usersList.setLayoutManager(new LinearLayoutManager(this));
-        userAdapter = new UserAdapter(allUsers, this);
-        usersList.setAdapter(userAdapter);
+
+        // ✅ Ensure userAdapter is always initialized
+        if (userAdapter == null) {
+            userAdapter = new UserAdapter(new ArrayList<>(), this);
+            usersList.setAdapter(userAdapter);
+        }
     }
 
     // ✅ Approve User (Implements Interface)
@@ -120,8 +139,8 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
                 .update("status", "approved")
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "User Approved!", Toast.LENGTH_SHORT).show();
-//                    loadPendingUsers();
-//                    loadApprovedUsers();
+                    removeUserFromPendingList(userId); // ✅ Remove from pending list
+                    loadApprovedUsers(); // ✅ Refresh approved users list
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Approval Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -134,10 +153,29 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
                 .delete()
                 .addOnSuccessListener(aVoid -> {
                     Toast.makeText(this, "User Rejected!", Toast.LENGTH_SHORT).show();
-//                    loadApprovedUsers();
+                    removeUserFromPendingList(userId); // ✅ Remove from pending list
                 })
                 .addOnFailureListener(e -> {
                     Toast.makeText(this, "Rejection Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    // ✅ Load Pending Users (Only those with "pending" status)
+    private void loadPendingUsers() {
+        firestore.collection("users").whereEqualTo("status", "pending")
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful() && task.getResult() != null) {
+                        pendingUsers.clear();
+                        for (DocumentSnapshot document : task.getResult().getDocuments()) {
+                            UserModel user = document.toObject(UserModel.class);
+                            if (user != null) {
+                                user.setUid(document.getId());
+                                pendingUsers.add(user);
+                            }
+                        }
+                        pendingUsersAdapter.notifyDataSetChanged();
+                    }
                 });
     }
 
@@ -155,12 +193,21 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
                                 allUsers.add(user);
                             }
                         }
-                        userAdapter.updateList(allUsers);  // ✅ Ensure UI refreshes with approved users
                     }
                 });
     }
 
-    // Toolbar Search Implementation
+    // ✅ Remove a User from Pending List (After Approval/Rejection)
+    private void removeUserFromPendingList(String userId) {
+        for (int i = 0; i < pendingUsers.size(); i++) {
+            if (pendingUsers.get(i).getUid().equals(userId)) {
+                pendingUsers.remove(i);
+                break;
+            }
+        }
+        pendingUsersAdapter.notifyDataSetChanged();
+    }
+
     // ✅ Toolbar Search Implementation
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -168,7 +215,9 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
         MenuItem searchItem = menu.findItem(R.id.action_search);
 
         if (searchItem != null) {
-            androidx.appcompat.widget.SearchView searchView = (androidx.appcompat.widget.SearchView) searchItem.getActionView();
+            androidx.appcompat.widget.SearchView searchView =
+                    (androidx.appcompat.widget.SearchView) searchItem.getActionView();
+
             searchView.setQueryHint("Search Users");
 
             searchView.setOnQueryTextListener(new androidx.appcompat.widget.SearchView.OnQueryTextListener() {
@@ -180,8 +229,24 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
 
                 @Override
                 public boolean onQueryTextChange(String newText) {
-                    searchUsers(newText);
+                    if (newText.isEmpty()) {
+                        usersList.setVisibility(View.GONE);  // ✅ Hide initially when search is empty
+                    } else {
+                        searchUsers(newText);
+                    }
                     return true;
+                }
+            });
+
+            // ✅ Ensure Users List Stays Hidden When Search is Closed or Back is Pressed
+            searchView.setOnCloseListener(() -> {
+                usersList.setVisibility(View.GONE);
+                return false;
+            });
+
+            searchView.setOnQueryTextFocusChangeListener((v, hasFocus) -> {
+                if (!hasFocus) {
+                    usersList.setVisibility(View.GONE);
                 }
             });
         }
@@ -190,12 +255,28 @@ public class AdminDashboardActivity extends AppCompatActivity implements Pending
 
     // ✅ Search function for dynamic user filtering
     private void searchUsers(String query) {
+        if (userAdapter == null) {
+            Log.e("AdminDashboardActivity", "Error: userAdapter is null");
+            return;
+        }
+//
+//        if (query.isEmpty()) {
+//            // ✅ If search query is empty, reload only approved users
+//            userAdapter.updateList(allUsers);
+//            return;
+//        }
+
         List<UserModel> filteredList = new ArrayList<>();
         for (UserModel user : allUsers) {
             if (user.getName().toLowerCase().contains(query.toLowerCase())) {
                 filteredList.add(user);
             }
         }
-        userAdapter.updateList(filteredList); // ✅ Dynamically update UI with search results
+        if (!filteredList.isEmpty()) {
+            usersList.setVisibility(View.VISIBLE);  // ✅ Show only filtered users
+            userAdapter.updateList(filteredList);
+        } else {
+            usersList.setVisibility(View.GONE);  // ✅ Hide if no matches
+        }
     }
 }
