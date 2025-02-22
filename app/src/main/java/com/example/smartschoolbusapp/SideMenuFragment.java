@@ -46,7 +46,13 @@ public class SideMenuFragment extends Fragment {
                     });
         }
 
-        btnChat.setOnClickListener(v -> startActivity(new Intent(getActivity(), ChatActivity.class)));
+//        btnChat.setOnClickListener(v -> startActivity(new Intent(getActivity(), ChatsListActivity.class)));
+        btnChat.setOnClickListener(v -> {
+            if (getActivity() != null) {
+                Intent chatIntent = new Intent(getActivity(), ChatsListActivity.class);
+                startActivity(chatIntent);
+            }
+        });
         btnRoutes.setOnClickListener(v -> {
             Intent intent = new Intent(getActivity(), RoutesActivity.class);
             intent.putExtra("role", userRole);
