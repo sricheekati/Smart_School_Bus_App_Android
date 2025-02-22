@@ -2,11 +2,9 @@ package com.example.smartschoolbusapp;
 
 import android.os.Bundle;
 import android.text.TextUtils;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
-import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -46,12 +44,13 @@ public class ChatActivity extends AppCompatActivity {
         firestore = FirebaseFirestore.getInstance();
         currentUser = auth.getCurrentUser();
         chatMessages = new ArrayList<>();
-        chatAdapter = new ChatAdapter(this, chatMessages);
+
+        // Pass the receiverId here
+        receiverId = getIntent().getStringExtra("receiverID");
+        chatAdapter = new ChatAdapter(this, chatMessages, receiverId);
 
         chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         chatRecyclerView.setAdapter(chatAdapter);
-
-        receiverId = getIntent().getStringExtra("receiverID");
 
         if (currentUser != null && receiverId != null) {
             chatRoomId = getChatRoomId(currentUser.getUid(), receiverId);
@@ -67,22 +66,24 @@ public class ChatActivity extends AppCompatActivity {
         String messageText = messageInput.getText().toString().trim();
         if (TextUtils.isEmpty(messageText)) return;
 
-        Map<String, Object> message = new HashMap<>();
-        message.put("senderID", currentUser.getUid());
-        message.put("receiverID", receiverId);
-        message.put("message", messageText);
-        message.put("timestamp", System.currentTimeMillis());
+        // Create a new message object with sender and receiver details
+        ChatMessage chatMessage = new ChatMessage(currentUser.getUid(), receiverId, messageText, System.currentTimeMillis());
 
+        // Add message to Firestore
         firestore.collection("chats").document(chatRoomId)
                 .collection("messages")
-                .add(message)
-                .addOnSuccessListener(documentReference -> messageInput.setText(""))
+                .add(chatMessage)
+                .addOnSuccessListener(documentReference -> {
+                    messageInput.setText("");  // Clear the message input
+                    Toast.makeText(ChatActivity.this, "Message sent", Toast.LENGTH_SHORT).show();
+                })
                 .addOnFailureListener(e -> Toast.makeText(ChatActivity.this, "Error sending message", Toast.LENGTH_SHORT).show());
     }
 
     private void listenForMessages() {
         CollectionReference messagesRef = firestore.collection("chats").document(chatRoomId).collection("messages");
 
+        // Listen to messages ordered by timestamp
         messagesRef.orderBy("timestamp", Query.Direction.ASCENDING).addSnapshotListener(new EventListener<QuerySnapshot>() {
             @Override
             public void onEvent(@Nullable QuerySnapshot value, @Nullable FirebaseFirestoreException error) {
@@ -97,7 +98,7 @@ public class ChatActivity extends AppCompatActivity {
                     chatMessages.add(message);
                 }
                 chatAdapter.notifyDataSetChanged();
-                chatRecyclerView.scrollToPosition(chatMessages.size() - 1);
+                chatRecyclerView.scrollToPosition(chatMessages.size() - 1);  // Scroll to the last message
             }
         });
     }

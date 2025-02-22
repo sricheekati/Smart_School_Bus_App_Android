@@ -1,45 +1,47 @@
 package com.example.smartschoolbusapp;
 
+import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
-import java.util.ArrayList;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
 
-    private List<Message> messages;
+    private Context context;
+    private List<ChatMessage> messages;
+    private String receiverId;
 
-    public ChatAdapter(List<Message> messages) {
-
-        this.messages = messages != null ? messages : new ArrayList<>();
-    }
-
-    public ChatAdapter(ChatActivity chatActivity, List<ChatMessage> chatMessages) {
+    // Constructor for ChatAdapter
+    public ChatAdapter(Context context, List<ChatMessage> messages, String receiverId) {
+        this.context = context;
+        this.messages = messages;
+        this.receiverId = receiverId;
     }
 
     @NonNull
     @Override
     public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_message, parent, false);
+        View view = LayoutInflater.from(context).inflate(R.layout.item_message, parent, false);
         return new ViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        Message message = messages.get(position);
-        if (message.isUser()) {
-            holder.userTextView.setText(message.getText());
-            holder.userTextView.setVisibility(View.VISIBLE);
-            holder.botTextView.setVisibility(View.GONE);
+        ChatMessage message = messages.get(position);
+        holder.messageText.setText(message.getMessage());
+
+        // Here you can update the UI based on sender and receiver
+        if (message.getSenderID().equals(receiverId)) {
+            holder.senderName.setText("Receiver: " + message.getSenderID());
         } else {
-            holder.botTextView.setText(message.getText());
-            holder.botTextView.setVisibility(View.VISIBLE);
-            holder.userTextView.setVisibility(View.GONE);
+            holder.senderName.setText("Sender: " + message.getSenderID());
         }
     }
 
@@ -49,12 +51,12 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView userTextView, botTextView;
+        TextView messageText, senderName;
 
         public ViewHolder(@NonNull View itemView) {
             super(itemView);
-            userTextView = itemView.findViewById(R.id.userMessage);
-            botTextView = itemView.findViewById(R.id.botMessage);
+            messageText = itemView.findViewById(R.id.messageText);
+            senderName = itemView.findViewById(R.id.senderName);
         }
     }
 }
