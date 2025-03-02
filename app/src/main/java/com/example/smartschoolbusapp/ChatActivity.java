@@ -16,7 +16,6 @@ import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.*;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,27 +34,25 @@ public class ChatActivity extends AppCompatActivity {
     private String receiverId;
     private String chatRoomId;
     private String currentUserId;
+    private String receiverName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
 
-        // ✅ Add Back Toolbar
+        // Setup Toolbar
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Chat");
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        }
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
-        chatRecyclerView = findViewById(R.id.chat_recycler_view);
-        messageInput = findViewById(R.id.message_input);
-        sendButton = findViewById(R.id.send_button);
-
+        // Initialize Firebase components
         auth = FirebaseAuth.getInstance();
         firestore = FirebaseFirestore.getInstance();
         currentUser = auth.getCurrentUser();
+        chatRecyclerView = findViewById(R.id.chat_recycler_view);
+        messageInput = findViewById(R.id.message_input);
+        sendButton = findViewById(R.id.send_button);
 
         if (currentUser != null) {
             currentUserId = currentUser.getUid();
@@ -65,117 +62,87 @@ public class ChatActivity extends AppCompatActivity {
             return;
         }
 
-        receiverId = getIntent().getStringExtra("receiverId"); // ✅ Fetch receiverId from intent
+        // Get receiverId and receiverName from Intent
+        receiverId = getIntent().getStringExtra("receiverId");
+        receiverName = getIntent().getStringExtra("receiverName");
+        getSupportActionBar().setTitle("Chat with " + receiverName); // Set the title to the receiver's name
 
-        // ✅ Debugging: Log receiverId before setup
-        System.out.println("🔹 ChatActivity received receiverId: " + receiverId);
-
-        if (receiverId == null || receiverId.isEmpty()) {
-            Toast.makeText(this, "Error: Receiver ID is missing! Fetching from Firestore...", Toast.LENGTH_SHORT).show();
-            fetchReceiverId();  // 🔥 Fetch from Firestore if missing
-        } else {
-            setupChat();
-        }
-    }
-
-    // ✅ Ensure fetchReceiverId() is logging data properly
-    private void fetchReceiverId() {
-        firestore.collection("chatRooms")
-                .whereArrayContains("users", currentUserId)
-                .limit(1)
-                .get()
-                .addOnSuccessListener(queryDocumentSnapshots -> {
-                    if (!queryDocumentSnapshots.isEmpty()) {
-                        for (DocumentSnapshot doc : queryDocumentSnapshots.getDocuments()) {
-                            List<String> users = (List<String>) doc.get("users");
-                            if (users != null) {
-                                for (String userId : users) {
-                                    if (!userId.equals(currentUserId)) {
-                                        receiverId = userId;
-                                        System.out.println("✅ Fetched receiverId from Firestore: " + receiverId);
-                                        setupChat();
-                                        return;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    Toast.makeText(ChatActivity.this, "Receiver ID could not be found!", Toast.LENGTH_SHORT).show();
-                    finish();
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(ChatActivity.this, "Failed to fetch receiver ID", Toast.LENGTH_SHORT).show();
-                    finish();
-                });
-    }
-
-    // ✅ Setup Chat Room
-    private void setupChat() {
-        if (receiverId == null || receiverId.isEmpty()) {
-            Toast.makeText(this, "Receiver ID is missing! Fetching from Firestore...", Toast.LENGTH_SHORT).show();
-            fetchReceiverId(); // 🔥 Try to fetch again if missing
-            return;
-        }
-
+        // Generate chat room ID
         chatRoomId = getChatRoomId(currentUserId, receiverId);
+
+        // Initialize message list and adapter
+        chatMessages = new ArrayList<>();
+        chatAdapter = new ChatAdapter(this, chatMessages, currentUserId);
+        chatRecyclerView.setAdapter(chatAdapter);
+        chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        // Check if the chat room exists, if not create one
         createChatRoomIfNotExists();
+
+        // Load chat messages from Firestore
         listenForMessages();
+
+        // Send message action
+        sendButton.setOnClickListener(v -> sendMessage());
     }
 
-    // ✅ Create Chat Room if It Doesn't Exist
+    // Create chat room if it doesn't exist
     private void createChatRoomIfNotExists() {
         firestore.collection("chatRooms").document(chatRoomId)
                 .get()
                 .addOnCompleteListener(task -> {
-                    if (!task.getResult().exists()) {
-                        Map<String, Object> chatRoom = new HashMap<>();
-                        chatRoom.put("users", Arrays.asList(currentUserId, receiverId));
-                        chatRoom.put("lastMessage", "");
-                        chatRoom.put("timestamp", System.currentTimeMillis());
+                    if (!task.isSuccessful() || !task.getResult().exists()) {
+                        // If the chat room doesn't exist, create a new one
+                        Map<String, Object> chatRoomData = new HashMap<>();
+                        chatRoomData.put("users", List.of(currentUserId, receiverId));
+                        chatRoomData.put("lastMessage", "");
+                        chatRoomData.put("timestamp", System.currentTimeMillis());
 
-                        firestore.collection("chatRooms").document(chatRoomId).set(chatRoom);
+                        firestore.collection("chatRooms").document(chatRoomId)
+                                .set(chatRoomData)
+                                .addOnSuccessListener(aVoid -> {
+                                    // Chat room successfully created
+                                    System.out.println("Chat room created");
+                                })
+                                .addOnFailureListener(e -> {
+                                    Toast.makeText(ChatActivity.this, "Error creating chat room", Toast.LENGTH_SHORT).show();
+                                });
                     }
                 });
     }
 
-    // ✅ Send Message
+    // Send message
     private void sendMessage() {
         String messageText = messageInput.getText().toString().trim();
-        if (TextUtils.isEmpty(messageText)) {
-            Toast.makeText(this, "Message cannot be empty", Toast.LENGTH_SHORT).show();
-            return;
+        if (!TextUtils.isEmpty(messageText)) {
+            long timestamp = System.currentTimeMillis();
+
+            Map<String, Object> message = new HashMap<>();
+            message.put("senderID", currentUserId);
+            message.put("receiverID", receiverId);
+            message.put("message", messageText);
+            message.put("timestamp", timestamp);
+
+            firestore.collection("chatRooms").document(chatRoomId)
+                    .collection("messages")
+                    .add(message)
+                    .addOnSuccessListener(documentReference -> {
+                        messageInput.setText("");  // Clear input field
+                        updateLastMessage(messageText, timestamp);  // Update chat room with last message
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(ChatActivity.this, "Error sending message", Toast.LENGTH_SHORT).show();
+                    });
         }
-
-        if (receiverId == null || receiverId.isEmpty()) {
-            Toast.makeText(this, "Error: Receiver ID is missing", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        String senderId = currentUserId;
-        long timestamp = System.currentTimeMillis();
-
-        Map<String, Object> message = new HashMap<>();
-        message.put("senderID", senderId);
-        message.put("receiverID", receiverId);
-        message.put("message", messageText);
-        message.put("timestamp", timestamp);
-
-        firestore.collection("chatRooms").document(chatRoomId)
-                .collection("messages")
-                .add(message)
-                .addOnSuccessListener(documentReference -> {
-                    messageInput.setText("");  // ✅ Clear input field
-
-                    // ✅ Update chatRooms to store last message preview
-                    firestore.collection("chatRooms").document(chatRoomId)
-                            .update("lastMessage", messageText, "timestamp", timestamp);
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(ChatActivity.this, "Error sending message", Toast.LENGTH_SHORT).show();
-                });
     }
 
-    // ✅ Listen for Messages
+    // Update last message in the chat room
+    private void updateLastMessage(String messageText, long timestamp) {
+        firestore.collection("chatRooms").document(chatRoomId)
+                .update("lastMessage", messageText, "timestamp", timestamp);
+    }
+
+    // Listen for new messages
     private void listenForMessages() {
         firestore.collection("chatRooms").document(chatRoomId)
                 .collection("messages")
@@ -185,25 +152,24 @@ public class ChatActivity extends AppCompatActivity {
                         Toast.makeText(ChatActivity.this, "Error loading messages", Toast.LENGTH_SHORT).show();
                         return;
                     }
-
                     chatMessages.clear();
-                    if (snapshots != null && !snapshots.isEmpty()) {
-                        for (QueryDocumentSnapshot document : snapshots) {
-                            ChatMessage message = document.toObject(ChatMessage.class);
+                    if (snapshots != null) {
+                        for (QueryDocumentSnapshot doc : snapshots) {
+                            ChatMessage message = doc.toObject(ChatMessage.class);
                             chatMessages.add(message);
                         }
                     }
                     chatAdapter.notifyDataSetChanged();
-                    chatRecyclerView.post(() -> chatRecyclerView.scrollToPosition(chatMessages.size() - 1));
+                    chatRecyclerView.scrollToPosition(chatMessages.size() - 1);  // Scroll to latest message
                 });
     }
 
-    // ✅ Generate Chat Room ID
+    // Generate a unique chat room ID
     private String getChatRoomId(String senderId, String receiverId) {
-        return senderId.compareTo(receiverId) < 0 ? senderId + "_" + receiverId : receiverId + "_" + senderId;
+        return senderId.compareTo(receiverId) < 0 ? senderId + "" + receiverId : receiverId + "" + senderId;
     }
 
-    // ✅ Handle Back Button Click
+    // Handle back button click
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
