@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -51,18 +50,40 @@
         android:textColor="@android:color/black"
         android:padding="12dp"
         android:clickable="true"
-        android:focusable="true" />
+        android:focusable="true"
+        android:visibility="gone" />
 
-    <TextView
-        android:id="@+id/menuEmergencyAlerts"
+    <!-- 🚨 Emergency Alerts with Badge -->
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Emergency Alerts"
-        android:textSize="18sp"
-        android:textColor="@android:color/black"
-        android:padding="12dp"
-        android:clickable="true"
-        android:focusable="true" />
+        android:padding="12dp">
+
+        <!-- Emergency Alerts Text -->
+        <TextView
+            android:id="@+id/menuEmergencyAlerts"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Emergency Alerts"
+            android:textSize="18sp"
+            android:textColor="@android:color/black"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <!-- 🔥 Badge Count Indicator (Newly Added) -->
+        <TextView
+            android:id="@+id/badge_count"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:gravity="center"
+            android:textSize="14sp"
+            android:textColor="@android:color/white"
+            android:background="@drawable/badge_background"
+            android:visibility="gone"
+            android:padding="4dp"/>
+    </RelativeLayout>
 
     <!-- 🚪 Logout -->
     <TextView
@@ -75,5 +96,4 @@
         android:padding="12dp"
         android:clickable="true"
         android:focusable="true" />
-
 </LinearLayout>
