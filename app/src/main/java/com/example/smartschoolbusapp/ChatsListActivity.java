@@ -30,17 +30,16 @@ public class ChatsListActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chats_list);
 
-        // ✅ Add Back Toolbar
+        // Setup the toolbar and enable the back button
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle("Chats");
-            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        }
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true); // Enable the back button
 
+        // Initialize RecyclerView
         chatsRecyclerView = findViewById(R.id.chats_list_recycler);
         chatsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
+        // Initialize Firebase components
         auth = FirebaseAuth.getInstance();
         firestore = FirebaseFirestore.getInstance();
         currentUserId = auth.getCurrentUser().getUid();
@@ -48,43 +47,40 @@ public class ChatsListActivity extends AppCompatActivity {
         chatsListAdapter = new ChatsListAdapter(chatRoomList, this);
         chatsRecyclerView.setAdapter(chatsListAdapter);
 
+        // Load the chats list
         loadChatsList();
     }
 
     private void loadChatsList() {
         firestore.collection("chatRooms")
                 .whereArrayContains("users", currentUserId)
-                .orderBy("timestamp", Query.Direction.DESCENDING) // ✅ Show latest chats first
+                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .addSnapshotListener((queryDocumentSnapshots, error) -> {
                     if (error != null) {
                         Toast.makeText(this, "Error loading chats!", Toast.LENGTH_SHORT).show();
-                        System.out.println("Firestore Error: " + error.getMessage());
                         return;
                     }
 
                     chatRoomList.clear();
                     for (DocumentSnapshot document : queryDocumentSnapshots.getDocuments()) {
                         ChatRoomModel chatRoom = document.toObject(ChatRoomModel.class);
-
-                        if (chatRoom != null && chatRoom.getUsers() != null && chatRoom.getUsers().size() > 1) {
+                        if (chatRoom != null && chatRoom.getUsers().contains(currentUserId)) {
                             String receiverId = chatRoom.getUsers().get(0).equals(currentUserId)
                                     ? chatRoom.getUsers().get(1) : chatRoom.getUsers().get(0);
-
-                            chatRoom.setReceiverId(receiverId); //Ensure receiver ID is set correctly
+                            chatRoom.setReceiverId(receiverId);
                             chatRoomList.add(chatRoom);
-                        } else {
-                            System.out.println("Skipping invalid chat room: " + document.getId());
                         }
                     }
                     chatsListAdapter.notifyDataSetChanged();
                 });
     }
 
-    // ✅ Handle Toolbar Back Button
+    // Handle back button in the toolbar
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         if (item.getItemId() == android.R.id.home) {
-            finish();
+            // Finish the current activity (go back to the previous screen)
+            onBackPressed();  // You can also call finish() here, but onBackPressed() is preferred
             return true;
         }
         return super.onOptionsItemSelected(item);

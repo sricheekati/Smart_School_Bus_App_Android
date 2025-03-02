@@ -31,6 +31,22 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.ViewHolder> {
         return new ViewHolder(view);
     }
 
+    /*@Override
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        UserModel user = filteredUsers.get(position);
+
+        holder.userName.setText(user.getName());
+        holder.userEmail.setText(user.getEmail());
+        holder.userRole.setText(user.getRole());
+
+        holder.itemView.setOnClickListener(v -> {
+            Intent chatIntent = new Intent(context, ChatActivity.class);
+            chatIntent.putExtra("receiverId", user.getUid());
+            chatIntent.putExtra("receiverName", user.getName());
+            context.startActivity(chatIntent);
+        });
+    }*/
+
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         UserModel user = filteredUsers.get(position);
@@ -40,32 +56,32 @@ public class UserAdapter extends RecyclerView.Adapter<UserAdapter.ViewHolder> {
         holder.userRole.setText(user.getRole());
 
         holder.itemView.setOnClickListener(v -> {
-            if (user.getUid() != null && !user.getUid().isEmpty()) { // 🔥 Ensure receiverId is valid
+            // Ensure the receiverId is valid
+            if (user.getUid() != null && !user.getUid().isEmpty()) {
                 Intent chatIntent = new Intent(context, ChatActivity.class);
-                chatIntent.putExtra("receiverId", user.getUid());
-                chatIntent.putExtra("receiverName", user.getName());
-                chatIntent.putExtra("receiverRole", user.getRole());
+                chatIntent.putExtra("receiverId", user.getUid());  // Pass the receiver's ID to ChatActivity
+                chatIntent.putExtra("receiverName", user.getName());  // Optionally pass the receiver's name as well
 
-                // ✅ Debugging: Log receiverId before starting ChatActivity
+                // Log for debugging
                 System.out.println("Opening ChatActivity with receiverId: " + user.getUid());
 
-                context.startActivity(chatIntent);
+                context.startActivity(chatIntent);  // Start the ChatActivity
             } else {
                 Toast.makeText(context, "Error: Receiver ID is missing", Toast.LENGTH_SHORT).show();
             }
         });
     }
 
+
     @Override
     public int getItemCount() {
         return filteredUsers.size();
     }
 
-    // ✅ Update user list dynamically for search
     public void updateList(List<UserModel> newUsers) {
         filteredUsers.clear();
         filteredUsers.addAll(newUsers);
-        notifyDataSetChanged(); // ✅ Refresh RecyclerView
+        notifyDataSetChanged();
     }
 
     public static class ViewHolder extends RecyclerView.ViewHolder {
