@@ -34,6 +34,7 @@ import com.google.firebase.firestore.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,8 +65,12 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
         setSupportActionBar(toolbar);
         if (getSupportActionBar() != null) {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setDisplayShowHomeEnabled(true);
         }
 
+        // ✅ Handle back button click
+        toolbar.setNavigationOnClickListener(v -> onBackPressed());
+        
         firestore = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
         userRole = getIntent().getStringExtra("role");
@@ -92,8 +97,8 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
         setupSearchView();
 
         createRouteButton.setVisibility("admin".equals(userRole) ? View.VISIBLE : View.GONE);
-        createRouteButton.setEnabled(true);
-        createRouteButton.setClickable(true);
+//        createRouteButton.setEnabled(true);
+//        createRouteButton.setClickable(true);
         createRouteButton.setOnClickListener(v -> showCreateRouteDialog());
 
     }
@@ -124,35 +129,138 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
 
         Query query = firestore.collection("routes");
 
-        if ("parent".equals(userRole)) {
-            query = query.whereArrayContains("assignedParents", user.getEmail());
+        if ("admin".equals(userRole)) {
+            query = firestore.collection("routes"); // Admin sees all routes
+        } else if ("parent".equals(userRole)) {
+            // ✅ Step 1: Fetch Student IDs for this Parent
+            firestore.collection("students")
+                    .whereEqualTo("parent_email", user.getEmail().trim()) // Fetch students assigned to this parent
+                    .get()
+                    .addOnSuccessListener(studentDocs -> {
+                        List<String> studentIds = new ArrayList<>();
+                        for (DocumentSnapshot studentDoc : studentDocs) {
+                            studentIds.add(studentDoc.getId()); // Get student ID
+                        }
+
+                        if (!studentIds.isEmpty()) {
+                            // ✅ Step 2: Fetch Routes Assigned to the Parent's Students
+                            firestore.collection("routes")
+                                    .whereArrayContainsAny("assignedStudents", studentIds)
+                                    .get()
+                                    .addOnSuccessListener(routeDocs -> {
+                                        routesList.clear();
+                                        clearMapMarkers();
+                                        routeListContainer.removeAllViews();
+                                        routeTextViews.clear();
+
+                                        for (DocumentSnapshot document : routeDocs) {
+                                            try {
+                                                Routes route = document.toObject(Routes.class);
+                                                if (route != null) {
+                                                    route.setRouteId(document.getId());
+
+                                                    // ✅ Convert Stops from Firestore HashMap to List<Stop>
+                                                    if (document.contains("stops")) {
+                                                        List<Stop> stopsList = new ArrayList<>();
+                                                        List<?> stopsData = (List<?>) document.get("stops");
+
+                                                        for (Object stopObj : stopsData) {
+                                                            if (stopObj instanceof HashMap) {
+                                                                HashMap<String, Object> stopMap = (HashMap<String, Object>) stopObj;
+                                                                String stopName = (String) stopMap.get("stopName");
+                                                                double latitude = ((Number) stopMap.get("latitude")).doubleValue();
+                                                                double longitude = ((Number) stopMap.get("longitude")).doubleValue();
+                                                                stopsList.add(new Stop(stopName, latitude, longitude));
+                                                            }
+                                                        }
+                                                        route.setStops(stopsList);
+                                                    }
+
+                                                    routesList.add(route);
+
+                                                    // ✅ Display Assigned Route in UI
+                                                    TextView routeTextView = new TextView(this);
+                                                    routeTextView.setText(route.getName());
+                                                    routeTextView.setTextSize(18);
+                                                    routeTextView.setPadding(10, 10, 10, 10);
+                                                    routeTextView.setTextColor(Color.BLUE);
+                                                    routeTextView.setOnClickListener(v -> showRouteOnMap(route));
+
+                                                    routeListContainer.addView(routeTextView);
+                                                    routeTextViews.add(routeTextView);
+                                                    addRouteMarkerToMap(route);
+                                                }
+                                            } catch (Exception e) {
+                                                Log.e("Firestore", "Error parsing route data", e);
+                                            }
+                                        }
+                                        routesAdapter.notifyDataSetChanged();
+                                    })
+                                    .addOnFailureListener(e -> Log.e("Firestore", "Error fetching assigned routes", e));
+                        } else {
+                            Log.d("Firestore", "No students found for this parent.");
+                        }
+                    })
+                    .addOnFailureListener(e -> Log.e("Firestore", "Error fetching students for parent", e));
         } else if ("driver".equals(userRole)) {
             query = query.whereEqualTo("driverEmail", user.getEmail());
         }
 
-        query.get().addOnCompleteListener(task -> {
-            if (task.isSuccessful()) {
-                routesList.clear();
-                clearMapMarkers();
-                for (DocumentSnapshot document : task.getResult()) {
-                    Routes route = document.toObject(Routes.class);
-                    if (route != null) {
-                        route.setRouteId(document.getId());
-                        routesList.add(route);
-                        TextView routeTextView = new TextView(this);
-                        routeTextView.setText(route.getName());
-                        routeTextView.setTextSize(18);
-                        routeTextView.setPadding(10, 10, 10, 10);
-                        routeTextView.setOnClickListener(v -> showRouteOnMap(route));
+        if (!"parent".equals(userRole)) { // Parents query is handled separately
+            query.get().addOnCompleteListener(task -> {
+                if (task.isSuccessful()) {
+                    routesList.clear();
+                    clearMapMarkers();
+                    routeListContainer.removeAllViews();
+                    routeTextViews.clear();
 
-                        routeListContainer.addView(routeTextView);
-                        routeTextViews.add(routeTextView);
-                        addRouteMarkerToMap(route);
+                    for (DocumentSnapshot document : task.getResult()) {
+                        try {
+                            Routes route = document.toObject(Routes.class);
+                            if (route != null) {
+                                route.setRouteId(document.getId());
+
+                                // ✅ Convert Stops from Firestore HashMap to List<Stop>
+                                if (document.contains("stops")) {
+                                    List<Stop> stopsList = new ArrayList<>();
+                                    List<?> stopsData = (List<?>) document.get("stops");
+
+                                    for (Object stopObj : stopsData) {
+                                        if (stopObj instanceof HashMap) {
+                                            HashMap<String, Object> stopMap = (HashMap<String, Object>) stopObj;
+                                            String stopName = (String) stopMap.get("stopName");
+                                            double latitude = ((Number) stopMap.get("latitude")).doubleValue();
+                                            double longitude = ((Number) stopMap.get("longitude")).doubleValue();
+                                            stopsList.add(new Stop(stopName, latitude, longitude));
+                                        }
+                                    }
+                                    route.setStops(stopsList);
+                                }
+
+                                routesList.add(route);
+
+                                // ✅ Display Route Name
+                                TextView routeTextView = new TextView(this);
+                                routeTextView.setText(route.getName());
+                                routeTextView.setTextSize(18);
+                                routeTextView.setPadding(10, 10, 10, 10);
+                                routeTextView.setTextColor(Color.BLUE);
+                                routeTextView.setOnClickListener(v -> showRouteOnMap(route));
+
+                                routeListContainer.addView(routeTextView);
+                                routeTextViews.add(routeTextView);
+                                addRouteMarkerToMap(route);
+                            }
+                        } catch (Exception e) {
+                            Log.e("Firestore", "Error parsing route data", e);
+                        }
                     }
+                    routesAdapter.notifyDataSetChanged();
+                } else {
+                    Log.e("Firestore", "Error loading routes", task.getException());
                 }
-                routesAdapter.notifyDataSetChanged();
-            }
-        });
+            });
+        }
     }
     private void showRouteOnMap(Routes route) {
         if (mMap == null) return;
@@ -169,11 +277,28 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
 
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(startLocation, 12));
 
+        // ✅ Real-time tracking for stops
         for (Stop stop : route.getStops()) {
             LatLng stopLocation = new LatLng(stop.getLatitude(), stop.getLongitude());
             Marker stopMarker = mMap.addMarker(new MarkerOptions().position(stopLocation).title("Stop: " + stop.getStopName()));
+
             if (stopMarker != null) markers.add(stopMarker);
         }
+
+        // ✅ Draw route polyline (Optional)
+        List<LatLng> routePoints = new ArrayList<>();
+        routePoints.add(startLocation);
+        for (Stop stop : route.getStops()) {
+            routePoints.add(new LatLng(stop.getLatitude(), stop.getLongitude()));
+        }
+        routePoints.add(endLocation);
+
+        PolylineOptions polylineOptions = new PolylineOptions()
+                .addAll(routePoints)
+                .width(10)
+                .color(Color.BLUE);
+
+        mMap.addPolyline(polylineOptions);
     }
 
     private void addRouteMarkerToMap(Routes route) {
@@ -233,6 +358,7 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
         Button saveButton = dialogView.findViewById(R.id.btn_save);
 
         AlertDialog dialog = builder.create();
+        dialog.show();
 
         saveButton.setOnClickListener(v -> {
             String name = routeName.getText().toString().trim();
@@ -242,13 +368,17 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
             String stopsText = stopsField.getText().toString().trim();
             String studentsText = studentsField.getText().toString().trim();
 
-            if (TextUtils.isEmpty(name) || TextUtils.isEmpty(start) || TextUtils.isEmpty(end)) {
+            if (TextUtils.isEmpty(name) || TextUtils.isEmpty(start) || TextUtils.isEmpty(end) || TextUtils.isEmpty(driver)) {
                 Toast.makeText(this, "Please fill all required fields", Toast.LENGTH_SHORT).show();
                 return;
             }
 
             double[] startCoords = getLatLngFromAddress(start);
             double[] endCoords = getLatLngFromAddress(end);
+            if (startCoords[0] == 0.0 || endCoords[0] == 0.0) {
+                Toast.makeText(this, "Invalid start or end location!", Toast.LENGTH_SHORT).show();
+                return;
+            }
 
             List<Stop> stopsList = new ArrayList<>();
             if (!stopsText.isEmpty()) {
@@ -260,22 +390,55 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
 
             List<String> assignedStudents = new ArrayList<>(Arrays.asList(studentsText.split(",")));
             List<String> assignedParents = new ArrayList<>();
-            AtomicInteger pendingRequests = new AtomicInteger(assignedStudents.size());
 
-            for (String studentId : assignedStudents) {
-                firestore.collection("students").document(studentId.trim()).get()
-                        .addOnSuccessListener(doc -> {
-                            if (doc.exists() && doc.contains("parent_email")) {
-                                assignedParents.add(doc.getString("parent_email"));
-                            }
-                            if (pendingRequests.decrementAndGet() == 0) {
-                                saveRoute(name, start, end, driver, startCoords, endCoords, assignedStudents, assignedParents, stopsList, dialog);
-                            }
-                        });
+            FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+            if (currentUser == null) {
+                Toast.makeText(this, "User not authenticated!", Toast.LENGTH_SHORT).show();
+                return;
             }
-        });
 
-        dialog.show();
+            // ✅ Verify the user is an admin before proceeding
+            firestore.collection("users").document(currentUser.getUid()).get()
+                    .addOnSuccessListener(userDoc -> {
+                        if (userDoc.exists() && "admin".equals(userDoc.getString("role"))) {
+                            AtomicInteger pendingRequests = new AtomicInteger(assignedStudents.size());
+
+                            if (assignedStudents.isEmpty()) {
+                                saveRoute(name, start, end, driver, startCoords, endCoords, assignedStudents, assignedParents, stopsList, dialog);
+                                return;
+                            }
+
+                            // ✅ Fetch parent emails for each assigned student
+                            for (String studentId : assignedStudents) {
+                                firestore.collection("students").document(studentId.trim()).get()
+                                        .addOnSuccessListener(doc -> {
+                                            if (doc.exists() && doc.contains("parent_email")) {
+                                                String parentEmail = doc.getString("parent_email");
+                                                if (!TextUtils.isEmpty(parentEmail) && !assignedParents.contains(parentEmail)) {
+                                                    assignedParents.add(parentEmail); // Store unique parent emails
+                                                }
+                                            }
+                                            // ✅ Ensure all requests are completed before saving the route
+                                            if (pendingRequests.decrementAndGet() == 0) {
+                                                saveRoute(name, start, end, driver, startCoords, endCoords, assignedStudents, assignedParents, stopsList, dialog);
+                                            }
+                                        })
+                                        .addOnFailureListener(e -> {
+                                            Log.e("Firestore", "Error fetching student data", e);
+                                            if (pendingRequests.decrementAndGet() == 0) {
+                                                saveRoute(name, start, end, driver, startCoords, endCoords, assignedStudents, assignedParents, stopsList, dialog);
+                                            }
+                                        });
+                            }
+                        } else {
+                            Toast.makeText(this, "Access Denied: Only admins can add routes", Toast.LENGTH_SHORT).show();
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        Log.e("Firestore", "Error fetching user role", e);
+                        Toast.makeText(this, "Error fetching user role", Toast.LENGTH_SHORT).show();
+                    });
+        });
     }
 
     private void showEditDeleteDialog(Routes route) {
@@ -361,7 +524,10 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
                 .addOnSuccessListener(docRef -> {
                     Toast.makeText(this, "Route Created Successfully!", Toast.LENGTH_SHORT).show();
                     loadRoutesForRole();
-                    dialog.dismiss();
+                    dialog.dismiss(); // ✅ Close only on success
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error saving route!", Toast.LENGTH_SHORT).show();
                 });
     }
 
