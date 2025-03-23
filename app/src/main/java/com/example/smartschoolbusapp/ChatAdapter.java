@@ -1,16 +1,17 @@
 package com.example.smartschoolbusapp;
 
 import android.content.Context;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.SimpleDateFormat;
@@ -18,71 +19,54 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
-// Constructor for ChatAdapter
-public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
+public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private Context context;
-    private List<ChatMessage> messages;
+    private List<ChatItem> chatItems;
     private String currentUserId;
+    private FirebaseFirestore firestore;
 
-    private FirebaseFirestore firestore;  // Add this line to declare the Firestore variable
+    private static final int VIEW_TYPE_MESSAGE = 0;
+    private static final int VIEW_TYPE_DATE_HEADER = 1;
 
-    public ChatAdapter(Context context, List<ChatMessage> messages, String currentUserId) {
+    public ChatAdapter(Context context, List<ChatItem> chatItems, String currentUserId) {
         this.context = context;
-        this.messages = messages;
+        this.chatItems = chatItems;
         this.currentUserId = currentUserId;
-        firestore = FirebaseFirestore.getInstance();  // Initialize firestore
-    }
-
-    @NonNull
-    @Override
-    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(context).inflate(R.layout.item_message, parent, false);
-        return new ViewHolder(view);
-    }
-
-    @Override
-    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        ChatMessage message = messages.get(position);
-        holder.messageText.setText(message.getMessage());
-
-        // Format the timestamp
-        String formattedTime = formatTimestamp(message.getTimestamp());
-        holder.timestamp.setText(formattedTime);
-
-        // Check if the message is from the current user or the other user
-        if (message.getSenderID().equals(currentUserId)) {
-            // Sender
-            holder.senderName.setText("You");
-            holder.messageText.setBackgroundResource(R.drawable.bg_bot_message); // Style sender's messages differently
-        } else {
-            // Receiver
-            // Fetch the sender's name from Firestore
-            firestore.collection("users")
-                    .document(message.getSenderID())
-                    .get()
-                    .addOnCompleteListener(task -> {
-                        if (task.isSuccessful() && task.getResult() != null) {
-                            DocumentSnapshot document = task.getResult();
-                            if (document.exists()) {
-                                String senderName = document.getString("name");
-                                holder.senderName.setText(senderName != null ? senderName : "Unknown User");
-                            } else {
-                                holder.senderName.setText("Unknown User");
-                            }
-                        } else {
-                            holder.senderName.setText("Unknown User");
-                            Toast.makeText(context, "Error fetching user data", Toast.LENGTH_SHORT).show();
-                        }
-                    });
-
-            holder.messageText.setBackgroundResource(R.drawable.bg_user_message); // Style receiver's messages differently
-        }
+        this.firestore = FirebaseFirestore.getInstance();
     }
 
     @Override
     public int getItemCount() {
-        return messages.size();
+        return chatItems.size();
+    }
+
+    @Override
+    public int getItemViewType(int position) {
+        return chatItems.get(position).getType();
+    }
+
+    @NonNull
+    @Override
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        if (viewType == VIEW_TYPE_DATE_HEADER) {
+            View view = LayoutInflater.from(context).inflate(R.layout.item_date_header, parent, false);
+            return new DateViewHolder(view);
+        } else {
+            View view = LayoutInflater.from(context).inflate(R.layout.item_message, parent, false);
+            return new MessageViewHolder(view);
+        }
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        ChatItem item = chatItems.get(position);
+        if (item.getType() == VIEW_TYPE_DATE_HEADER) {
+            ((DateViewHolder) holder).dateText.setText(((DateHeader) item).getDate());
+        } else {
+            ChatMessage message = (ChatMessage) item;
+            ((MessageViewHolder) holder).bind(message);
+        }
     }
 
     private String formatTimestamp(long timestamp) {
@@ -90,14 +74,61 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.ViewHolder> {
         return sdf.format(new Date(timestamp));
     }
 
-    public static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView messageText, senderName, timestamp;
+    public class MessageViewHolder extends RecyclerView.ViewHolder {
+        TextView messageText, timestamp;
+        ImageView statusIcon;
+        LinearLayout messageContainer, statusContainer;
 
-        public ViewHolder(@NonNull View itemView) {
+        public MessageViewHolder(@NonNull View itemView) {
             super(itemView);
             messageText = itemView.findViewById(R.id.messageText);
-            senderName = itemView.findViewById(R.id.senderName);
             timestamp = itemView.findViewById(R.id.timestamp);
+            statusIcon = itemView.findViewById(R.id.statusIcon);
+            messageContainer = itemView.findViewById(R.id.message_container);
+            statusContainer = itemView.findViewById(R.id.status_container);
+        }
+
+        public void bind(ChatMessage message) {
+            messageText.setText(message.getMessage());
+            timestamp.setText(formatTimestamp(message.getTimestamp()));
+
+            // Adjust layout_gravity of the statusContainer dynamically
+            LinearLayout.LayoutParams statusParams = (LinearLayout.LayoutParams) statusContainer.getLayoutParams();
+
+            if (message.getSenderID().equals(currentUserId)) {
+                // Sender (Right side)
+                messageContainer.setGravity(Gravity.END);
+                statusParams.gravity = Gravity.END;
+                statusContainer.setLayoutParams(statusParams);
+
+                messageText.setBackgroundResource(R.drawable.bg_bot_message);
+                messageText.setTextColor(context.getResources().getColor(android.R.color.black));
+
+                statusIcon.setVisibility(View.VISIBLE);
+                if (message.isSeen()) {
+                    statusIcon.setImageResource(R.drawable.ic_double_tick_blue);
+                } else {
+                    statusIcon.setImageResource(R.drawable.ic_double_tick_gray);
+                }
+            } else {
+                // Receiver (Left side)
+                messageContainer.setGravity(Gravity.START);
+                statusParams.gravity = Gravity.START;
+                statusContainer.setLayoutParams(statusParams);
+
+                messageText.setBackgroundResource(R.drawable.bg_user_message);
+                messageText.setTextColor(context.getResources().getColor(android.R.color.black));
+                statusIcon.setVisibility(View.GONE);
+            }
+        }
+    }
+
+    public class DateViewHolder extends RecyclerView.ViewHolder {
+        TextView dateText;
+
+        public DateViewHolder(@NonNull View itemView) {
+            super(itemView);
+            dateText = itemView.findViewById(R.id.date_text);
         }
     }
 }
