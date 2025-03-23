@@ -1,34 +1,46 @@
-<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/message_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="10dp">
+    android:padding="8dp"
+    android:gravity="start">
 
-    <!-- Sender/Receiver message text -->
+    <!-- Message bubble -->
     <TextView
         android:id="@+id/messageText"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Chat message goes here"
+        android:text="Sample message"
         android:textSize="16sp"
-        android:layout_marginBottom="10dp" />
+        android:textColor="@android:color/black"
+        android:padding="10dp"
+        android:background="@drawable/bg_user_message"
+        android:layout_marginBottom="4dp"/>
 
-    <!-- Sender/Receiver Name (optional) -->
-    <TextView
-        android:id="@+id/senderName"
+    <!-- Timestamp and tick icons -->
+    <LinearLayout
+        android:id="@+id/status_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Sender Name"
-        android:textSize="14sp"
-        android:textColor="@android:color/darker_gray" />
+        android:orientation="horizontal"
+        android:gravity="start"
+        android:layout_gravity="start">
 
-    <!-- Timestamp -->
-    <TextView
-        android:id="@+id/timestamp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="12:30 PM"
-        android:textSize="12sp"
-        android:textColor="@android:color/darker_gray" />
+        <TextView
+            android:id="@+id/timestamp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="12:30 PM"
+            android:textSize="12sp"
+            android:textColor="@android:color/darker_gray"
+            android:layout_marginEnd="6dp"/>
+
+        <ImageView
+            android:id="@+id/statusIcon"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_double_tick_gray"
+            android:visibility="gone"/>
+    </LinearLayout>
 </LinearLayout>
