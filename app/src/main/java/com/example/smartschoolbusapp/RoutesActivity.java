@@ -1,6 +1,10 @@
 package com.example.smartschoolbusapp;
 
 import android.app.AlertDialog;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.location.Address;
 import android.location.Geocoder;
@@ -20,17 +24,28 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.toolbox.JsonObjectRequest;
+import com.android.volley.toolbox.Volley;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.MapView;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polyline;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.*;
+import com.google.maps.android.PolyUtil;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -54,9 +69,8 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
     private Button createRouteButton; // Admin button for creating routes
     private LinearLayout routeListContainer;
     private List<TextView> routeTextViews = new ArrayList<>();
+    private Polyline polyline;
 
-
-    @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_routes);
@@ -70,7 +84,6 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
 
         // ✅ Handle back button click
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
-        
         firestore = FirebaseFirestore.getInstance();
         auth = FirebaseAuth.getInstance();
         userRole = getIntent().getStringExtra("role");
@@ -96,16 +109,7 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
         loadRoutesForRole();
         setupSearchView();
 
-        createRouteButton.setVisibility("admin".equals(userRole) ? View.VISIBLE : View.GONE);
-//        createRouteButton.setEnabled(true);
-//        createRouteButton.setClickable(true);
         createRouteButton.setOnClickListener(v -> showCreateRouteDialog());
-
-    }
-
-    @Override
-    public void onMapReady(@NonNull GoogleMap googleMap) {
-        mMap = googleMap;
     }
 
     private void fetchUserRoleFromFirestore() {
@@ -117,10 +121,25 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
                 .addOnSuccessListener(documentSnapshot -> {
                     if (documentSnapshot.exists()) {
                         userRole = documentSnapshot.getString("role");
-                        loadRoutesForRole();
-                        createRouteButton.setVisibility("admin".equals(userRole) ? View.VISIBLE : View.GONE);
+                        loadRoutesForRole(); // Reload routes based on the role
+
+                        // Directly handle visibility logic here
+                        if ("admin".equals(userRole)) {
+                            createRouteButton.setVisibility(View.VISIBLE);
+                            routesRecyclerView.setVisibility(View.VISIBLE);
+                        } else if ("driver".equals(userRole)) {
+                            createRouteButton.setVisibility(View.GONE);
+                            routesRecyclerView.setVisibility(View.VISIBLE);
+                        } else {
+                            createRouteButton.setVisibility(View.GONE);
+                            routesRecyclerView.setVisibility(View.GONE);
+                        }
                     }
                 });
+    }
+    @Override
+    public void onMapReady(@NonNull GoogleMap googleMap) {
+        mMap = googleMap;
     }
 
     private void loadRoutesForRole() {
@@ -134,7 +153,7 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
         } else if ("parent".equals(userRole)) {
             // ✅ Step 1: Fetch Student IDs for this Parent
             firestore.collection("students")
-                    .whereEqualTo("parent_email", user.getEmail().trim()) // Fetch students assigned to this parent
+                    .whereEqualTo("parent_email", user.getEmail().trim().toLowerCase()) // Fetch students assigned to this parent
                     .get()
                     .addOnSuccessListener(studentDocs -> {
                         List<String> studentIds = new ArrayList<>();
@@ -262,43 +281,105 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
             });
         }
     }
+    private BitmapDescriptor resizeMarkerIcon(int resourceId) {
+        int densityDpi = getResources().getDisplayMetrics().densityDpi;
+        int iconSize = densityDpi / 5; // Adjust size based on screen density
+
+        Bitmap imageBitmap = BitmapFactory.decodeResource(getResources(), resourceId);
+        Bitmap resizedBitmap = Bitmap.createScaledBitmap(imageBitmap, iconSize, iconSize, false);
+        return BitmapDescriptorFactory.fromBitmap(resizedBitmap);
+    }
     private void showRouteOnMap(Routes route) {
         if (mMap == null) return;
         clearMapMarkers();
+        if (polyline != null) {
+            polyline.remove();
+            polyline = null;
+        }
 
         LatLng startLocation = new LatLng(route.getStartLat(), route.getStartLng());
         LatLng endLocation = new LatLng(route.getEndLat(), route.getEndLng());
 
-        Marker startMarker = mMap.addMarker(new MarkerOptions().position(startLocation).title("Start: " + route.getStartLocation()));
-        Marker endMarker = mMap.addMarker(new MarkerOptions().position(endLocation).title("End: " + route.getEndLocation()));
-
+        Marker startMarker = mMap.addMarker(new MarkerOptions()
+                .position(startLocation)
+                .title("Start: " + route.getStartLocation())
+                .icon(resizeMarkerIcon(R.drawable.start_marker)));
         if (startMarker != null) markers.add(startMarker);
+
+        Marker endMarker = mMap.addMarker(new MarkerOptions()
+                .position(endLocation)
+                .title("End: " + route.getEndLocation())
+                .icon(resizeMarkerIcon(R.drawable.end_marker)));
         if (endMarker != null) markers.add(endMarker);
 
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(startLocation, 12));
 
-        // ✅ Real-time tracking for stops
         for (Stop stop : route.getStops()) {
             LatLng stopLocation = new LatLng(stop.getLatitude(), stop.getLongitude());
-            Marker stopMarker = mMap.addMarker(new MarkerOptions().position(stopLocation).title("Stop: " + stop.getStopName()));
-
+            Marker stopMarker = mMap.addMarker(new MarkerOptions()
+                    .position(stopLocation)
+                    .title("Stop: " + stop.getStopName())
+                    .icon(resizeMarkerIcon(R.drawable.stop_marker)));
             if (stopMarker != null) markers.add(stopMarker);
         }
 
-        // ✅ Draw route polyline (Optional)
-        List<LatLng> routePoints = new ArrayList<>();
-        routePoints.add(startLocation);
-        for (Stop stop : route.getStops()) {
-            routePoints.add(new LatLng(stop.getLatitude(), stop.getLongitude()));
+        getRouteFromGoogle(startLocation, endLocation, route.getStops());
+    }
+    private void getRouteFromGoogle(LatLng start, LatLng end, List<Stop> stops) {
+        // ✅ Retrieve API key from manifest
+        String apiKey = getApiKeyFromManifest();
+        if (apiKey == null || apiKey.isEmpty()) {
+            Log.e("MAPS_ERROR", "API Key not found in manifest!");
+            return;
         }
-        routePoints.add(endLocation);
 
-        PolylineOptions polylineOptions = new PolylineOptions()
-                .addAll(routePoints)
-                .width(10)
-                .color(Color.BLUE);
+        // Construct waypoints (if there are stops)
+        StringBuilder waypoints = new StringBuilder();
+        if (stops != null && !stops.isEmpty()) {
+            waypoints.append("&waypoints=");
+            for (int i = 0; i < stops.size(); i++) {
+                Stop stop = stops.get(i);
+                waypoints.append(stop.getLatitude()).append(",").append(stop.getLongitude());
+                if (i < stops.size() - 1) {
+                    waypoints.append("|");
+                }
+            }
+        }
 
-        mMap.addPolyline(polylineOptions);
+        String url = "https://maps.googleapis.com/maps/api/directions/json?" +
+                "origin=" + start.latitude + "," + start.longitude +
+                "&destination=" + end.latitude + "," + end.longitude +
+                "&mode=driving" + waypoints +
+                "&key=" + apiKey;
+
+        RequestQueue queue = Volley.newRequestQueue(this);
+        JsonObjectRequest request = new JsonObjectRequest(Request.Method.GET, url, null,
+                response -> {
+                    try {
+                        JSONArray routes = response.getJSONArray("routes");
+                        if (routes.length() > 0) {
+                            JSONObject route = routes.getJSONObject(0);
+                            JSONObject polyline = route.getJSONObject("overview_polyline");
+                            String encodedPolyline = polyline.getString("points");
+
+                            // Decode polyline and draw route
+                            drawRoutePolyline(PolyUtil.decode(encodedPolyline));
+                        }
+                    } catch (JSONException e) {
+                        Log.e("MAPS_ERROR", "JSON Parsing Error: " + e.getMessage());
+                    }
+                }, error -> Log.e("MAPS_ERROR", "API Request Error: " + error.getMessage()));
+
+        queue.add(request);
+    }
+    private String getApiKeyFromManifest() {
+        try {
+            ApplicationInfo appInfo = getPackageManager().getApplicationInfo(getPackageName(), PackageManager.GET_META_DATA);
+            return appInfo.metaData.getString("com.google.android.geo.API_KEY");
+        } catch (PackageManager.NameNotFoundException e) {
+            Log.e("MAPS_ERROR", "Failed to load API Key from manifest: " + e.getMessage());
+            return null;
+        }
     }
 
     private void addRouteMarkerToMap(Routes route) {
@@ -397,7 +478,6 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
                 return;
             }
 
-            // ✅ Verify the user is an admin before proceeding
             firestore.collection("users").document(currentUser.getUid()).get()
                     .addOnSuccessListener(userDoc -> {
                         if (userDoc.exists() && "admin".equals(userDoc.getString("role"))) {
@@ -413,9 +493,9 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
                                 firestore.collection("students").document(studentId.trim()).get()
                                         .addOnSuccessListener(doc -> {
                                             if (doc.exists() && doc.contains("parent_email")) {
-                                                String parentEmail = doc.getString("parent_email");
+                                                String parentEmail = doc.getString("parent_email").trim().toLowerCase();
                                                 if (!TextUtils.isEmpty(parentEmail) && !assignedParents.contains(parentEmail)) {
-                                                    assignedParents.add(parentEmail); // Store unique parent emails
+                                                    assignedParents.add(parentEmail.trim().toLowerCase()); // ✅ Add normalized email
                                                 }
                                             }
                                             // ✅ Ensure all requests are completed before saving the route
@@ -453,8 +533,12 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
         EditText stopsField = dialogView.findViewById(R.id.stops_input);
         EditText studentsField = dialogView.findViewById(R.id.students_input);
         Button saveButton = dialogView.findViewById(R.id.btn_save);
-        Button deleteButton = new Button(this);
-        deleteButton.setText("Delete");
+        Button deleteButton = dialogView.findViewById(R.id.btn_delete);
+
+        // Set visibility of delete button based on user role
+        if (!"admin".equals(userRole)) {
+            deleteButton.setVisibility(View.GONE); // Hide delete button for non-admin users
+        }
 
         // ✅ Populate existing data
         routeName.setText(route.getName());
@@ -511,13 +595,11 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
                     .addOnFailureListener(e -> Toast.makeText(this, "Error deleting route", Toast.LENGTH_SHORT).show());
         });
 
-        builder.setView(dialogView);
         builder.setNegativeButton("Cancel", (dialogInterface, i) -> dialog.dismiss());
         builder.setPositiveButton("Delete", (dialogInterface, i) -> deleteButton.performClick());
 
         dialog.show();
     }
-
     private void saveRoute(String name, String start, String end, String driver, double[] startCoords, double[] endCoords, List<String> students, List<String> parents, List<Stop> stops, AlertDialog dialog) {
         Routes newRoute = new Routes("", name, driver, start, end, startCoords[0], startCoords[1], endCoords[0], endCoords[1], parents, students, stops);
         firestore.collection("routes").add(newRoute)
@@ -547,15 +629,18 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
 
     public void drawRoutePolyline(List<LatLng> points) {
         if (mMap != null) {
+            // ✅ Remove previous polyline before drawing a new one
+            if (polyline != null) {
+                polyline.remove();
+            }
             PolylineOptions polylineOptions = new PolylineOptions()
                     .addAll(points)
                     .width(10)
                     .color(Color.BLUE);
 
-            mMap.addPolyline(polylineOptions);
+            polyline = mMap.addPolyline(polylineOptions); // Store the new polyline reference
         }
     }
-
     private void setupSearchView() {
         routesSearchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
