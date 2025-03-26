@@ -130,13 +130,26 @@ public class ChatActivity extends AppCompatActivity {
         firestore.collection("chatRooms").document(chatRoomId)
                 .update("lastMessage", messageText, "timestamp", timestamp);
     }*/
-    private void updateLastMessage(String messageText, long timestamp) {
+    /*private void updateLastMessage(String messageText, long timestamp) {
         firestore.collection("chatRooms").document(chatRoomId)
                 .update("lastMessage", messageText, "timestamp", timestamp)
                 .addOnFailureListener(e ->
                         Toast.makeText(this, "Failed to update chat room", Toast.LENGTH_SHORT).show()
                 );
+    }*/
+    private void updateLastMessage(String messageText, long timestamp) {
+        Map<String, Object> chatRoomUpdate = new HashMap<>();
+        chatRoomUpdate.put("lastMessage", messageText);
+        chatRoomUpdate.put("timestamp", timestamp);
+        chatRoomUpdate.put("seenBy", Collections.singletonList(currentUserId)); // 👈 Add this
+
+        firestore.collection("chatRooms").document(chatRoomId)
+                .update(chatRoomUpdate)
+                .addOnFailureListener(e ->
+                        Toast.makeText(this, "Failed to update chat room", Toast.LENGTH_SHORT).show()
+                );
     }
+
 
 
 //    private void listenForMessages() {
@@ -211,6 +224,9 @@ public class ChatActivity extends AppCompatActivity {
                     chatMessages.addAll(items);
                     chatAdapter.notifyDataSetChanged();
                     chatRecyclerView.scrollToPosition(chatMessages.size() - 1);
+                    // ✅ Mark chatRoom as seen
+                    firestore.collection("chatRooms").document(chatRoomId)
+                            .update("seenBy", FieldValue.arrayUnion(currentUserId));
                 });
     }
 
@@ -249,4 +265,25 @@ public class ChatActivity extends AppCompatActivity {
         }
         return super.onOptionsItemSelected(item);
     }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        if (chatRoomId != null && !chatRoomId.isEmpty()) {
+            firestore.collection("chatRooms").document(chatRoomId)
+                    .get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        if (documentSnapshot.exists()) {
+                            markChatRoomAsSeen(); // ✅ Update seenBy
+                        }
+                    });
+        }
+    }
+
+    private void markChatRoomAsSeen() {
+        firestore.collection("chatRooms").document(chatRoomId)
+                .update("seenBy", FieldValue.arrayUnion(currentUserId));
+    }
+
 }
