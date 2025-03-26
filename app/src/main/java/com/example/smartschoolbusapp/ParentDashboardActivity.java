@@ -225,10 +225,20 @@ public class ParentDashboardActivity extends AppCompatActivity {
                 .addOnSuccessListener(queryDocumentSnapshots -> {
                     userList.clear();
 
-                    for (DocumentSnapshot doc : queryDocumentSnapshots.getDocuments()) {
+                    /*for (DocumentSnapshot doc : queryDocumentSnapshots.getDocuments()) {
                         UserModel user = doc.toObject(UserModel.class);
                         if (user != null && user.getName() != null && user.getName().toLowerCase().contains(query.toLowerCase())) {
                             userList.add(user);
+                        }
+                    }*/
+
+                    for (DocumentSnapshot doc : queryDocumentSnapshots.getDocuments()) {
+                        UserModel user = doc.toObject(UserModel.class);
+                        if (user != null) {
+                            user.setUid(doc.getId()); // ✅ Set UID from document ID
+                            if (user.getName() != null && user.getName().toLowerCase().contains(query.toLowerCase())) {
+                                userList.add(user);
+                            }
                         }
                     }
 
