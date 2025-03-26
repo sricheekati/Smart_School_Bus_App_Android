@@ -22,6 +22,29 @@ public class ChatRoomModel {
     }
 
     // ✅ Getters
+    private List<String> seenBy;
+
+    public List<String> getSeenBy() {
+        return seenBy;
+    }
+
+    public void setSeenBy(List<String> seenBy) {
+        this.seenBy = seenBy;
+    }
+    private int unreadCount;
+
+    public int getUnreadCount() {
+        return unreadCount;
+    }
+
+    public void setUnreadCount(int unreadCount) {
+        this.unreadCount = unreadCount;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
+    }
+
     public String getLastMessage() { return lastMessage; }
     public long getTimestamp() { return timestamp; }
     public List<String> getUsers() { return users; }
