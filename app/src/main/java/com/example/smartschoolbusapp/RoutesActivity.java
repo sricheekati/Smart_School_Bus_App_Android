@@ -437,9 +437,11 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
         EditText stopsField = dialogView.findViewById(R.id.stops_input);
         EditText studentsField = dialogView.findViewById(R.id.students_input);
         Button saveButton = dialogView.findViewById(R.id.btn_save);
+        Button deleteButton = dialogView.findViewById(R.id.btn_delete);
 
         AlertDialog dialog = builder.create();
         dialog.show();
+        deleteButton.setVisibility(View.GONE);
 
         saveButton.setOnClickListener(v -> {
             String name = routeName.getText().toString().trim();
@@ -535,12 +537,11 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
         Button saveButton = dialogView.findViewById(R.id.btn_save);
         Button deleteButton = dialogView.findViewById(R.id.btn_delete);
 
-        // Set visibility of delete button based on user role
         if (!"admin".equals(userRole)) {
-            deleteButton.setVisibility(View.GONE); // Hide delete button for non-admin users
+            deleteButton.setVisibility(View.GONE);
         }
 
-        // ✅ Populate existing data
+        // Populate fields with existing data
         routeName.setText(route.getName());
         startLocation.setText(route.getStartLocation());
         endLocation.setText(route.getEndLocation());
@@ -563,7 +564,7 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
             route.setEndLocation(endLocation.getText().toString());
             route.setDriverEmail(driverEmail.getText().toString());
 
-            // ✅ Process updated stops
+            // Process updated stops
             List<Stop> updatedStops = new ArrayList<>();
             for (String stopName : stopsField.getText().toString().split(",")) {
                 double[] stopCoords = getLatLngFromAddress(stopName.trim());
@@ -571,16 +572,65 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
             }
             route.setStops(updatedStops);
 
-            // ✅ Update Firestore with new route data
-            FirebaseFirestore.getInstance().collection("routes")
-                    .document(route.getRouteId())
-                    .set(route)
-                    .addOnSuccessListener(aVoid -> {
-                        Toast.makeText(this, "Route updated", Toast.LENGTH_SHORT).show();
-                        dialog.dismiss();
-                        loadRoutesForRole();
-                    })
-                    .addOnFailureListener(e -> Toast.makeText(this, "Error updating route", Toast.LENGTH_SHORT).show());
+            List<String> updatedStudents = new ArrayList<>(Arrays.asList(studentsField.getText().toString().split(",")));
+            route.setAssignedStudents(updatedStudents);
+
+            List<String> updatedParents = new ArrayList<>();
+            AtomicInteger pendingRequests = new AtomicInteger(updatedStudents.size());
+
+            if (updatedStudents.isEmpty()) {
+                route.setAssignedParents(updatedParents);
+                FirebaseFirestore.getInstance().collection("routes")
+                        .document(route.getRouteId())
+                        .set(route)
+                        .addOnSuccessListener(aVoid -> {
+                            Toast.makeText(this, "Route updated", Toast.LENGTH_SHORT).show();
+                            dialog.dismiss();
+                            loadRoutesForRole();
+                        })
+                        .addOnFailureListener(e -> Toast.makeText(this, "Error updating route", Toast.LENGTH_SHORT).show());
+                return;
+            }
+
+            // Fetch parent emails for assigned students
+            for (String studentId : updatedStudents) {
+                FirebaseFirestore.getInstance().collection("students").document(studentId.trim()).get()
+                        .addOnSuccessListener(doc -> {
+                            if (doc.exists() && doc.contains("parent_email")) {
+                                String parentEmail = doc.getString("parent_email").trim().toLowerCase();
+                                if (!TextUtils.isEmpty(parentEmail) && !updatedParents.contains(parentEmail)) {
+                                    updatedParents.add(parentEmail);
+                                }
+                            }
+                            if (pendingRequests.decrementAndGet() == 0) {
+                                route.setAssignedParents(updatedParents);
+                                FirebaseFirestore.getInstance().collection("routes")
+                                        .document(route.getRouteId())
+                                        .set(route)
+                                        .addOnSuccessListener(aVoid -> {
+                                            Toast.makeText(this, "Route updated", Toast.LENGTH_SHORT).show();
+                                            dialog.dismiss();
+                                            loadRoutesForRole();
+                                        })
+                                        .addOnFailureListener(e -> Toast.makeText(this, "Error updating route", Toast.LENGTH_SHORT).show());
+                            }
+                        })
+                        .addOnFailureListener(e -> {
+                            Log.e("Firestore", "Error fetching student data", e);
+                            if (pendingRequests.decrementAndGet() == 0) {
+                                route.setAssignedParents(updatedParents);
+                                FirebaseFirestore.getInstance().collection("routes")
+                                        .document(route.getRouteId())
+                                        .set(route)
+                                        .addOnSuccessListener(aVoid -> {
+                                            Toast.makeText(this, "Route updated", Toast.LENGTH_SHORT).show();
+                                            dialog.dismiss();
+                                            loadRoutesForRole();
+                                        })
+                                        .addOnFailureListener(err -> Toast.makeText(this, "Error updating route", Toast.LENGTH_SHORT).show());
+                            }
+                        });
+            }
         });
 
         deleteButton.setOnClickListener(v -> {
@@ -600,6 +650,7 @@ public class RoutesActivity extends AppCompatActivity implements OnMapReadyCallb
 
         dialog.show();
     }
+
     private void saveRoute(String name, String start, String end, String driver, double[] startCoords, double[] endCoords, List<String> students, List<String> parents, List<Stop> stops, AlertDialog dialog) {
         Routes newRoute = new Routes("", name, driver, start, end, startCoords[0], startCoords[1], endCoords[0], endCoords[1], parents, students, stops);
         firestore.collection("routes").add(newRoute)
