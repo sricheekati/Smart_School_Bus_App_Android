@@ -4,25 +4,47 @@ import java.util.List;
 import java.util.Map;
 
 public class ChatRoomModel {
+    private String chatRoomId;
     private String lastMessage;
     private long timestamp;
     private List<String> users;
-    private Map<String, String> roles;
-    private String receiverId; // ✅ Add receiverId field
+    private List<String> seenBy;
+    private Map<String, Integer> unreadCount;
+    private String receiverId;
 
-    // ✅ Default Constructor (Needed for Firestore)
-    public ChatRoomModel() { }
+    public ChatRoomModel() {}
 
-    // ✅ Constructor
-    public ChatRoomModel(String lastMessage, long timestamp, List<String> users, Map<String, String> roles) {
-        this.lastMessage = lastMessage;
-        this.timestamp = timestamp;
-        this.users = users;
-        this.roles = roles;
+    public String getChatRoomId() {
+        return chatRoomId;
     }
 
-    // ✅ Getters
-    private List<String> seenBy;
+    public void setChatRoomId(String chatRoomId) {
+        this.chatRoomId = chatRoomId;
+    }
+
+    public String getLastMessage() {
+        return lastMessage;
+    }
+
+    public void setLastMessage(String lastMessage) {
+        this.lastMessage = lastMessage;
+    }
+
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
+    }
+
+    public List<String> getUsers() {
+        return users;
+    }
+
+    public void setUsers(List<String> users) {
+        this.users = users;
+    }
 
     public List<String> getSeenBy() {
         return seenBy;
@@ -31,26 +53,27 @@ public class ChatRoomModel {
     public void setSeenBy(List<String> seenBy) {
         this.seenBy = seenBy;
     }
-    private int unreadCount;
 
-    public int getUnreadCount() {
+    public Map<String, Integer> getUnreadCount() {
         return unreadCount;
     }
 
-    public void setUnreadCount(int unreadCount) {
+    public void setUnreadCount(Map<String, Integer> unreadCount) {
         this.unreadCount = unreadCount;
     }
 
-    public void setTimestamp(long timestamp) {
-        this.timestamp = timestamp;
+    public int getUnreadCountForUser(String userId) {
+        if (unreadCount != null && unreadCount.containsKey(userId)) {
+            return unreadCount.get(userId);
+        }
+        return 0;
     }
 
-    public String getLastMessage() { return lastMessage; }
-    public long getTimestamp() { return timestamp; }
-    public List<String> getUsers() { return users; }
-    public Map<String, String> getRoles() { return roles; }
+    public String getReceiverId() {
+        return receiverId;
+    }
 
-    // ✅ Add receiverId Getter & Setter
-    public String getReceiverId() { return receiverId; }
-    public void setReceiverId(String receiverId) { this.receiverId = receiverId; } // 🔥 Add this method
+    public void setReceiverId(String receiverId) {
+        this.receiverId = receiverId;
+    }
 }
