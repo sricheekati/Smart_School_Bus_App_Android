@@ -7,6 +7,7 @@ import android.widget.Button;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends AppCompatActivity {
@@ -15,6 +16,10 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 🔁 Clear Firestore Cache BEFORE doing anything else
+        FirebaseFirestore.getInstance().clearPersistence()
+                .addOnSuccessListener(aVoid -> Log.d("Firestore", "Cache cleared successfully."))
+                .addOnFailureListener(e -> Log.e("Firestore", "Cache clear failed: " + e.getMessage()));
         setContentView(R.layout.activity_main);
 
         // Initialize logout button
