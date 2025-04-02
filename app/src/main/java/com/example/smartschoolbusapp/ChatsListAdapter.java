@@ -2,19 +2,18 @@ package com.example.smartschoolbusapp;
 
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
-import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
@@ -25,15 +24,13 @@ public class ChatsListAdapter extends RecyclerView.Adapter<ChatsListAdapter.View
     private List<ChatRoomModel> chatRooms;
     private Context context;
     private FirebaseFirestore firestore;
-    private FirebaseAuth auth;
     private String currentUserId;
 
     public ChatsListAdapter(List<ChatRoomModel> chatRooms, Context context) {
         this.chatRooms = chatRooms;
         this.context = context;
         this.firestore = FirebaseFirestore.getInstance();
-        this.auth = FirebaseAuth.getInstance();
-        this.currentUserId = auth.getCurrentUser().getUid();
+        this.currentUserId = FirebaseAuth.getInstance().getCurrentUser().getUid();
     }
 
     @NonNull
@@ -46,52 +43,47 @@ public class ChatsListAdapter extends RecyclerView.Adapter<ChatsListAdapter.View
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         ChatRoomModel chatRoom = chatRooms.get(position);
-        String receiverId = chatRoom.getUsers().get(0).equals(currentUserId)
-                ? chatRoom.getUsers().get(1)
-                : chatRoom.getUsers().get(0);
+        String receiverId = chatRoom.getReceiverId();
 
-        firestore.collection("users").document(receiverId)
+        FirebaseFirestore.getInstance().collection("users").document(receiverId)
                 .get()
-                .addOnSuccessListener(documentSnapshot -> {
-                    if (documentSnapshot.exists()) {
-                        holder.userName.setText(documentSnapshot.getString("name"));
+                .addOnSuccessListener(doc -> {
+                    if (doc.exists()) {
+                        holder.userName.setText(doc.getString("name"));
                     } else {
                         holder.userName.setText("Unknown User");
                     }
                 })
                 .addOnFailureListener(e -> holder.userName.setText("Unknown User"));
 
-        String message = chatRoom.getLastMessage();
-        holder.lastMessage.setText(message != null ? message : "");
+        // 📨 Show last message
+        holder.lastMessage.setText(chatRoom.getLastMessage() != null ? chatRoom.getLastMessage() : "");
 
+        // 🔵 Bold if message is unread by current user
         if (chatRoom.getSeenBy() == null || !chatRoom.getSeenBy().contains(currentUserId)) {
             holder.lastMessage.setTypeface(null, Typeface.BOLD);
         } else {
             holder.lastMessage.setTypeface(null, Typeface.NORMAL);
         }
 
-
-
-
+        // 🕒 Timestamp
         holder.timestamp.setText(formatTimestamp(chatRoom.getTimestamp()));
 
-        // ✅ Set unread badge visibility
-        int unreadCount = chatRoom.getUnreadCount();
-        if (unreadCount > 0) {
+        // 🔢 Unread count badge
+        int unread = chatRoom.getUnreadCountForUser(currentUserId);
+        if (unread > 0) {
             holder.unreadBadge.setVisibility(View.VISIBLE);
-            holder.unreadBadge.setText(String.valueOf(unreadCount));
+            holder.unreadBadge.setText(String.valueOf(unread));
         } else {
             holder.unreadBadge.setVisibility(View.GONE);
         }
 
-        // Open chat on click
+        // 🚀 Launch chat activity
         holder.itemView.setOnClickListener(v -> {
-            Intent chatIntent = new Intent(context, ChatActivity.class);
-            chatIntent.putExtra("receiverId", receiverId);
-            chatIntent.putExtra("receiverName", holder.userName.getText().toString());
-            //context.startActivity(chatIntent);
-            ((AppCompatActivity) context).startActivityForResult(chatIntent, 1001);
-
+            Intent intent = new Intent(context, ChatActivity.class);
+            intent.putExtra("receiverId", receiverId);
+            intent.putExtra("receiverName", holder.userName.getText().toString());
+            ((AppCompatActivity) context).startActivityForResult(intent, 1001);
         });
     }
 
@@ -101,11 +93,9 @@ public class ChatsListAdapter extends RecyclerView.Adapter<ChatsListAdapter.View
     }
 
     private String formatTimestamp(long timestamp) {
-        SimpleDateFormat sdf = new SimpleDateFormat("hh:mm a", Locale.getDefault());
-        return sdf.format(new Date(timestamp));
+        return new SimpleDateFormat("hh:mm a", Locale.getDefault()).format(new Date(timestamp));
     }
 
-    // ✅ ViewHolder with unread badge
     public static class ViewHolder extends RecyclerView.ViewHolder {
         TextView userName, lastMessage, timestamp, unreadBadge;
 
@@ -114,7 +104,7 @@ public class ChatsListAdapter extends RecyclerView.Adapter<ChatsListAdapter.View
             userName = itemView.findViewById(R.id.chat_user_name);
             lastMessage = itemView.findViewById(R.id.chat_last_message);
             timestamp = itemView.findViewById(R.id.chat_timestamp);
-            unreadBadge = itemView.findViewById(R.id.chat_unread_badge); // ✅ Connect badge
+            unreadBadge = itemView.findViewById(R.id.chat_unread_badge);
         }
     }
 }
