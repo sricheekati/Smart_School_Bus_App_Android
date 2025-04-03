@@ -40,12 +40,10 @@ public class ChatActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat);
 
-        // Setup Toolbar
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
-        // Initialize Firebase components
         auth = FirebaseAuth.getInstance();
         firestore = FirebaseFirestore.getInstance();
         currentUser = auth.getCurrentUser();
@@ -61,27 +59,20 @@ public class ChatActivity extends AppCompatActivity {
             return;
         }
 
-        // Get receiverId and receiverName from Intent
         receiverId = getIntent().getStringExtra("receiverId");
         receiverName = getIntent().getStringExtra("receiverName");
         getSupportActionBar().setTitle("Chat with " + receiverName);
 
-        // Generate chat room ID
         chatRoomId = getChatRoomId(currentUserId, receiverId);
 
-        // Initialize message list and adapter
         chatMessages = new ArrayList<>();
         chatAdapter = new ChatAdapter(this, chatMessages, currentUserId);
         chatRecyclerView.setAdapter(chatAdapter);
         chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        // Check if the chat room exists, if not create one
         createChatRoomIfNotExists();
-
-        // Load chat messages from Firestore
         listenForMessages();
 
-        // Send message action
         sendButton.setOnClickListener(v -> sendMessage());
     }
 
@@ -126,67 +117,85 @@ public class ChatActivity extends AppCompatActivity {
         }
     }
 
-    /* private void updateLastMessage(String messageText, long timestamp) {
-        firestore.collection("chatRooms").document(chatRoomId)
-                .update("lastMessage", messageText, "timestamp", timestamp);
-    }*/
-    /*private void updateLastMessage(String messageText, long timestamp) {
-        firestore.collection("chatRooms").document(chatRoomId)
-                .update("lastMessage", messageText, "timestamp", timestamp)
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Failed to update chat room", Toast.LENGTH_SHORT).show()
-                );
-    }*/
     private void updateLastMessage(String messageText, long timestamp) {
         Map<String, Object> chatRoomUpdate = new HashMap<>();
         chatRoomUpdate.put("lastMessage", messageText);
         chatRoomUpdate.put("timestamp", timestamp);
-        chatRoomUpdate.put("seenBy", Collections.singletonList(currentUserId)); // 👈 Add this
+        chatRoomUpdate.put("seenBy", Collections.singletonList(currentUserId));
+        chatRoomUpdate.put("unreadCount." + receiverId, FieldValue.increment(1));
 
         firestore.collection("chatRooms").document(chatRoomId)
                 .update(chatRoomUpdate)
-                .addOnFailureListener(e ->
-                        Toast.makeText(this, "Failed to update chat room", Toast.LENGTH_SHORT).show()
-                );
+                .addOnFailureListener(e -> Toast.makeText(this, "Failed to update chat room", Toast.LENGTH_SHORT).show());
     }
 
+    /*private void listenForMessages() {
+        firestore.collection("chatRooms").document(chatRoomId)
+                .collection("messages")
+                .orderBy("timestamp", Query.Direction.ASCENDING)
+                .addSnapshotListener((snapshots, error) -> {
+                    if (error != null) {
+                        Toast.makeText(ChatActivity.this, "Error loading messages", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
 
+                    List<ChatItem> items = new ArrayList<>();
+                    String lastDate = "";
 
-//    private void listenForMessages() {
-//        firestore.collection("chatRooms").document(chatRoomId)
-//                .collection("messages")
-//                .orderBy("timestamp", Query.Direction.ASCENDING)
-//                .addSnapshotListener((snapshots, error) -> {
-//                    if (error != null) {
-//                        Toast.makeText(ChatActivity.this, "Error loading messages", Toast.LENGTH_SHORT).show();
-//                        return;
-//                    }
-//
-//                    List<ChatItem> items = new ArrayList<>();
-//                    String lastDate = "";
-//
-//                    if (snapshots != null) {
-//                        for (QueryDocumentSnapshot doc : snapshots) {
-//                            ChatMessage message = doc.toObject(ChatMessage.class);
-//                            String dateString = formatDateHeader(message.getTimestamp());
-//
-//                            if (!dateString.equals(lastDate)) {
-//                                items.add(new DateHeader(dateString));
-//                                lastDate = dateString;
-//                            }
-//
-//                            items.add(message);
-//                        }
-//                    }
-//
-//                    chatMessages.clear();
-//                    chatMessages.addAll(items);
-//                    chatAdapter.notifyDataSetChanged();
-//                    chatRecyclerView.scrollToPosition(chatMessages.size() - 1);
-//                });
-//
-//
-//    }
+                    if (snapshots != null) {
+                        for (QueryDocumentSnapshot doc : snapshots) {
+                            ChatMessage message = doc.toObject(ChatMessage.class);
+                            String dateString = formatDateHeader(message.getTimestamp());
+
+                            if (!message.getSenderID().equals(currentUserId) && !message.isSeen()) {
+                                doc.getReference().update("seen", true);
+                            }
+
+                            if (!dateString.equals(lastDate)) {
+                                items.add(new DateHeader(dateString));
+                                lastDate = dateString;
+                            }
+
+                            items.add(message);
+                        }
+                    }
+
+                    chatMessages.clear();
+                    chatMessages.addAll(items);
+                    chatAdapter.notifyDataSetChanged();
+                    chatRecyclerView.scrollToPosition(chatMessages.size() - 1);
+
+                   //firestore.collection("chatRooms").document(chatRoomId)
+                     //       .update("seenBy", FieldValue.arrayUnion(currentUserId),
+                                //    "unreadCount." + currentUserId, 0);
+
+                    boolean hasUnread = false;
+                    for (QueryDocumentSnapshot doc : snapshots) {
+                        ChatMessage message = doc.toObject(ChatMessage.class);
+                        if (!message.getSenderID().equals(currentUserId) && !message.isSeen()) {
+                            hasUnread = true;
+                            doc.getReference().update("seen", true); // mark message seen
+                        }
+          }
+
+                    if (hasUnread) {
+                        //firestore.collection("chatRooms").document(chatRoomId)
+                             //   .update("seenBy", FieldValue.arrayUnion(currentUserId),
+                                   //     "unreadCount." + currentUserId, 0);
+
+                        // ✅ Mark messages as seen only if current user is viewing chat
+                        if (!isFinishing() && !isDestroyed()) {
+                            firestore.collection("chatRooms").document(chatRoomId)
+                                    .update(
+                                            "seenBy", FieldValue.arrayUnion(currentUserId),
+                                            "unreadCount." + currentUserId, 0
+                                    );
+                        }
+
+                    }
+
+                });
+    */
 
     private void listenForMessages() {
         firestore.collection("chatRooms").document(chatRoomId)
@@ -206,7 +215,7 @@ public class ChatActivity extends AppCompatActivity {
                             ChatMessage message = doc.toObject(ChatMessage.class);
                             String dateString = formatDateHeader(message.getTimestamp());
 
-                            // ✅ Add this block for marking message as seen
+                            // ✅ Mark individual message as seen only if it's from receiver and not already seen
                             if (!message.getSenderID().equals(currentUserId) && !message.isSeen()) {
                                 doc.getReference().update("seen", true);
                             }
@@ -220,13 +229,23 @@ public class ChatActivity extends AppCompatActivity {
                         }
                     }
 
+                    // ✅ After rendering messages, update chatRoom seen status
                     chatMessages.clear();
                     chatMessages.addAll(items);
                     chatAdapter.notifyDataSetChanged();
                     chatRecyclerView.scrollToPosition(chatMessages.size() - 1);
-                    // ✅ Mark chatRoom as seen
-                    firestore.collection("chatRooms").document(chatRoomId)
-                            .update("seenBy", FieldValue.arrayUnion(currentUserId));
+
+                    // 🔥 Now safe to mark chatRoom as seen and reset unread count
+                    if (!isFinishing() && !isDestroyed()) {
+                        firestore.collection("chatRooms").document(chatRoomId)
+                                .update(
+                                        "seenBy", FieldValue.arrayUnion(currentUserId),
+                                        "unreadCount." + currentUserId, 0
+                                )
+                                .addOnFailureListener(e ->
+                                        Toast.makeText(ChatActivity.this, "Failed to mark chat as seen", Toast.LENGTH_SHORT).show()
+                                );
+                    }
                 });
     }
 
@@ -275,7 +294,7 @@ public class ChatActivity extends AppCompatActivity {
                     .get()
                     .addOnSuccessListener(documentSnapshot -> {
                         if (documentSnapshot.exists()) {
-                            markChatRoomAsSeen(); // ✅ Update seenBy
+                            //markChatRoomAsSeen();
                         }
                     });
         }
@@ -283,7 +302,9 @@ public class ChatActivity extends AppCompatActivity {
 
     private void markChatRoomAsSeen() {
         firestore.collection("chatRooms").document(chatRoomId)
-                .update("seenBy", FieldValue.arrayUnion(currentUserId));
+                .update("seenBy", FieldValue.arrayUnion(currentUserId),
+                        "unreadCount." + currentUserId, 0);
     }
-
 }
+
+
